@@ -15,7 +15,7 @@ class Decoder_GRU(nn.Module):
         
         self.dropout = nn.Dropout(dropout)
         
-    def forward(self, input, hidden, cell):
+    def forward(self, input, hidden):
         # input = [batch size]
         # hidden = [n layers * n directions, batch size, hid dim]
         # cell = [n layers * n directions, batch size, hid dim]
@@ -33,11 +33,10 @@ class Decoder_GRU(nn.Module):
         #seq len and n directions will always be 1 in the decoder, therefore:
         #output = [1, batch size, hid dim]
         #hidden = [n layers, batch size, hid dim]
-        #cell = [n layers, batch size, hid dim]
         
         prediction = self.fc_out(output.squeeze(0))
         
-        return prediction, hidden, cell
+        return prediction, hidden
 
 class Decoder_LSTM(nn.Module):
     def __init__(self, output_dim, hid_dim, n_layers, dropout):
