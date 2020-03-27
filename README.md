@@ -3,4 +3,7 @@ Michael Nolan
 Created:\t2020.02.13
 Updated:\t2020.02.13
 
-
+#### Installation
+```
+python setup.py install
+```

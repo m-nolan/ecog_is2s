@@ -21,27 +21,29 @@ class Seq2Seq_GRU(nn.Module):
         #teacher_forcing_ratio: prob. to use teacher forcing
         #e.g. if 0.75, ground-truth imports are used 75% of the time
         
-        batch_size = trg.shape[1]
-        trg_len = trg.shape[0]
-        trg_vocab_size = self.decoder.output_dim
+        batch_size = trg.shape[0]
+        
+        src_len = src.shape[1]
+        src_dim = src.shape[2]
+        
+        trg_len = trg.shape[1]
+        trg_dim = self.decoder.output_dim
         
         #tensor to store decoder outputs
-        outputs = torch.zeros(trg_len, batch_size, trg_vocab_size).to(self.device)
+        outputs = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
         
-        _, hidden = self.encoder(src)
+        enc_state, hidden = self.encoder(src)
         
-        input = trg[0,:]
+        output = src[:,-1,:].unsqueeze(1) # start the decoder with the actual output
         
-        for t in range(1,trg_len): # ignore that first data point
-            output, hidden = self.decoder(input,hidden)
+        for t in range(trg_len): # ignore that first data point
+            pred, output, hidden = self.decoder(output,hidden)
             
-            outputs[t] = output
+            outputs[:,t,:] = pred.squeeze()
             
             teacher_force = random.random() < teacher_forcing_ratio
             
-            top1 = output.argmax(1)
-            
-            input = trg[t] if teacher_force else top1
+            input = trg[:,t,:] if teacher_force else output
         
         return outputs
     

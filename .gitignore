@@ -1,3 +1,5 @@
 *.pdf
+*.png
+
 *ipynb_checkpoint*
 
