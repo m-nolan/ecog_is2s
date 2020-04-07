@@ -7,40 +7,6 @@ import numpy as np
 import math
 import time
 
-from Encoder import Encoder_GRU
-from Decoder import Decoder_GRU
-from Seq2Seq import Seq2Seq_GRU
-import util # init_weights
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # a better way?
-
-# add a whole thing HERE where we load the ECoG data from a single file.
-
-INPUT_DIM = len(SRC.vocab) # SRC, TRG are the same time series here.
-OUTPUT_DIM = len(TRG.vocab)
-# ENC_EMB_DIM = 256 # used for sequence embedding models, a la NLP
-# DEC_EMB_DIM = 256
-HID_DIM = 512
-N_LAYERS = 2
-ENC_DROPOUT = 0.5 # dropout layer chance
-DEC_DROPOUT = 0.5
-
-enc = Encoder_GRU(INPUT_DIM, HID_DIM, N_LAYERS, ENC_DROPOUT)
-dec = Decoder_GRU(OUTPUT_DIM, HID_DIM, N_LAYERS, DEC_DROPOUT)
-
-model = Seq2Seq(enc, dec, device).to(device)
-model.appy(init_weights)
-
-print(f'The model has {count_parameters(model):,} trainable parameters')
-# ^ I am not familiar with this syntax.
-
-# define the optimizer
-optimizer = optim.Adam(model.parameters())
-criterion = nn.CrossEntropyLoss
-# here's the example code, detailing how to add trial padding
-# TRG_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
-# criterion = nn.CrossEntropyLoss(ignore_index = TRG_PAD_IDX)
-
 # not sure if this belongs here
 def train(model, iterator, optimizer, criterion, clip):
     

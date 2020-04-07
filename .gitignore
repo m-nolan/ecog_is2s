@@ -1,5 +1,5 @@
 *.pdf
 *.png
-
+*__pycache__*
 *ipynb_checkpoint*
 
