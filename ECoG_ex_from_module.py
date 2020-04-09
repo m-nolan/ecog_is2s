@@ -25,6 +25,7 @@ import time
 import progressbar as pb
 import datetime
 import os
+import sys
 
 import matplotlib.pyplot as plt
 
@@ -40,12 +41,19 @@ torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 
 # load data
-data_file_full_path = '/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
+platform_name = sys.platform
+if platform_name == 'darwin':
+    # local machine
+    data_file_full_path = '/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
+    mask_file_path = "/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
+else if platform_name == 'linux2':
+    # HYAK, baby!
+    data_file_full_path = '/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
+    mask_file_path = "/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
 data_in, data_param, data_mask = datareader.load_ecog_clfp_data(data_file_name=data_file_full_path)
 srate_in= data_param['srate']
 num_ch = data_param['num_ch']
 # we already found the appropriate data masks, so just load them in
-mask_file_path = "/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
 with open(mask_file_path, 'rb') as f:
     mask_data = pkl.load(f)
 hf_mask = mask_data["hf"]
@@ -139,7 +147,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     ax.plot(e_idx,test_loss[e_idx],'r.')
     
     # print the figure; continuously overwrite (like a fun stock ticker)
-    f.savefig()
+    f.savefig('training_progress.png')
 
 
 
