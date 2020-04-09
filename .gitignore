@@ -2,4 +2,9 @@
 *.png
 *__pycache__*
 *ipynb_checkpoint*
+*.pt
+build
+dist
+.data
+*.egg-info
 
