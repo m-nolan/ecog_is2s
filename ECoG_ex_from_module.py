@@ -22,7 +22,7 @@ import random
 import math
 import time
 
-import progressbar as pb
+# import progressbar as pb
 import datetime
 import os
 import sys
@@ -46,10 +46,15 @@ if platform_name == 'darwin':
     # local machine
     data_file_full_path = '/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
     mask_file_path = "/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
-else if platform_name == 'linux2':
+elif platform_name == 'linux2':
     # HYAK, baby!
     data_file_full_path = '/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
     mask_file_path = "/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
+elif platform_name == 'linux':
+    # google cloud, don't fail me now
+    data_file_full_path = '/home/mickey/rec001.LM1_ECOG_3.clfp.dat'
+    mask_file_path = '/home/mickey/rec001.LM1_ECOG_3.clfp.mask.pkl'
+
 data_in, data_param, data_mask = datareader.load_ecog_clfp_data(data_file_name=data_file_full_path)
 srate_in= data_param['srate']
 num_ch = data_param['num_ch']
@@ -77,6 +82,9 @@ data_tensor = torch.from_numpy(sp.stats.zscore(data_in[:,data_idx].view().transp
 print(data_tensor.size)
 dataset = EcogDataloader.EcogDataset(data_tensor,seq_len) ## make my own Dataset class
 
+idx_all = np.arange(dataset.data.shape[0])
+sample_idx = idx_all[:-seq_len]
+
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len
 OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
@@ -102,6 +110,10 @@ optimizer = optim.Adam(model.parameters())
 criterion = nn.MSELoss()
 
 # get to training!
+train_frac = 0.8
+test_frac = 0.2
+valid_frac = 0.0
+BATCH_SIZE = 1
 N_EPOCHS = 50
 CLIP = 1
 
