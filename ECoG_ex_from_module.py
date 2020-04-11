@@ -71,6 +71,9 @@ sat_mask = mask_data["sat"]
 # mask data array, remove obvious outliers
 data_in[:,np.logical_or(hf_mask,sat_mask)] = 0.
 
+# downsample data
+srate_down = 250
+
 # create dataset object from file
 srate = srate_in
 # data_in = np.double(data_in[:,:120*srate])
@@ -79,8 +82,10 @@ dec_len = 1
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
 total_len_T = 1*60 # I just don't have that much time!
-total_len_n = total_len_T*srate
+total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
+print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
+data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
 
 data_tensor = torch.from_numpy(sp.stats.zscore(data_in[:,data_idx].view().transpose()))
 if device == 'cuda:0':
@@ -165,5 +170,5 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     # print the figure; continuously overwrite (like a fun stock ticker)
     f.savefig('training_progress.png')
 
-
+# save model
 
