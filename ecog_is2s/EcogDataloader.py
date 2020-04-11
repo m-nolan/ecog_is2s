@@ -5,11 +5,18 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 
 
+# create device mounting function (move data to GPU)
+def to_device( data, device ):
+    if isinstance(data, (list, tuple)):
+        return [to_device(x, device) for x in data]
+    return data.to(device, non_blocking=True)
+
 # dataset interface to ECoG data (really more general, just multivariate time series data)
 # to-do: expanding this to 
 class EcogDataset(Dataset):
-    def __init__(self, data_in, block_len):
+    def __init__(self, data_in, device, block_len):
         self.data = data_in
+        self.device = device
         self.block_len = int(block_len)
         self.data_len = self.data.shape[0]
 
@@ -18,8 +25,20 @@ class EcogDataset(Dataset):
 
     def __getitem__(self, idx):
         # get data range (make sure not to sample from outside range)
-        return self.data[idx:(idx + self.block_len),:]
+        return self.data[idx:(idx + self.block_len),:].to(self.device, non_blocking=True)
 
+# # dataloader wrapper to force the to_device functionality
+# def DeviceDataLoader( *arg ):
+#     def __init__( self, dl, device ):
+#         self.dl = dl
+#         self.device = device
+        
+#     def __iter__( self ):
+#         for b in self.dl:
+#             yield to_device(b, self.device)
+    
+#     def __len__( self ):
+#         return len(self.dl)
 
 # produce sequential dataloaders
 def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size ):
@@ -29,15 +48,18 @@ def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_si
 
     train_sampler, test_sampler, valid_sampler = genSamplers(sample_idx,train_frac,test_frac,valid_frac=valid_frac)
 
-    train_loader = DataLoader(dataset, batch_size=batch_size,
-                                               sampler=train_sampler,
-                                               drop_last=True) # this can be avoided using some padding sequence classes, I think
-    test_loader = DataLoader(dataset, batch_size=batch_size,
-                                              sampler=test_sampler,
-                                              drop_last=True)
-    valid_loader = DataLoader(dataset, batch_size=batch_size,
-                                              sampler=valid_sampler,
-                                              drop_last=True)
+    train_loader = DataLoader(dataset, 
+                              batch_size=batch_size,
+                              sampler=train_sampler,
+                              drop_last=True) # this can be avoided using some padding sequence classes, I think
+    test_loader = DataLoader(dataset, 
+                             batch_size=batch_size,
+                             sampler=test_sampler,
+                             drop_last=True)
+    valid_loader = DataLoader(dataset, 
+                              batch_size=batch_size,
+                              sampler=valid_sampler,
+                              drop_last=True)
     return train_loader, test_loader, valid_loader
 
 

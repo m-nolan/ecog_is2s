@@ -86,7 +86,7 @@ data_tensor = torch.from_numpy(sp.stats.zscore(data_in[:,data_idx].view().transp
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
-dataset = EcogDataloader.EcogDataset(data_tensor,seq_len) ## make my own Dataset class
+dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own Dataset class
 
 idx_all = np.arange(dataset.data.shape[0])
 sample_idx = idx_all[:-seq_len]
