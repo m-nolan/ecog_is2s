@@ -87,7 +87,7 @@ data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
 data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
 
-data_tensor = torch.from_numpy(sp.stats.zscore(data_in[:,data_idx].view().transpose()))
+data_tensor = torch.from_numpy(sp.stats.zscore(data_in.view().transpose()))
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
