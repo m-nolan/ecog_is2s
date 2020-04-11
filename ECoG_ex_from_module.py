@@ -77,7 +77,7 @@ srate_down = 250
 # create dataset object from file
 srate = srate_in
 # data_in = np.double(data_in[:,:120*srate])
-enc_len = 10
+enc_len = 250
 dec_len = 1
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
@@ -122,8 +122,8 @@ criterion = nn.MSELoss()
 train_frac = 0.8
 test_frac = 0.2
 valid_frac = 0.0
-BATCH_SIZE = 10
-N_EPOCHS = 50
+BATCH_SIZE = 1000
+N_EPOCHS = 100
 CLIP = 1
 
 best_test_loss = float('inf')
