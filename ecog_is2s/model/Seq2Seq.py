@@ -8,7 +8,7 @@ class Seq2Seq_GRU(nn.Module):
         
         self.encoder = encoder
         self.decoder = decoder
-        self.device = device # what is this?
+        self.device = device
         
         assert encoder.hid_dim == decoder.hid_dim, \
             "Encoder, decoder embedding dimensions (hidden state) must be equal."
@@ -21,6 +21,10 @@ class Seq2Seq_GRU(nn.Module):
         #trg = [trg len, batch size]
         #teacher_forcing_ratio: prob. to use teacher forcing
         #e.g. if 0.75, ground-truth imports are used 75% of the time
+        
+        src.to(self.device) # get the data to the GPU!
+        trg.to(self.device)
+        # ^ this may be a very inefficient way of doing things.
         
         batch_size = trg.shape[0]
         
