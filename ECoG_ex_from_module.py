@@ -40,6 +40,10 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 
+# set device - CUDA if you've got it
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print('mounting to device: {}'.format(device))
+
 # load data
 platform_name = sys.platform
 if platform_name == 'darwin':
@@ -79,6 +83,8 @@ total_len_n = total_len_T*srate
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 
 data_tensor = torch.from_numpy(sp.stats.zscore(data_in[:,data_idx].view().transpose()))
+if device == 'cuda:0':
+    data_tensor.cuda()
 print(data_tensor.size)
 dataset = EcogDataloader.EcogDataset(data_tensor,seq_len) ## make my own Dataset class
 
@@ -95,8 +101,6 @@ N_ENC_LAYERS = 1
 N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, ENC_DROPOUT)
 dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, DEC_DROPOUT)

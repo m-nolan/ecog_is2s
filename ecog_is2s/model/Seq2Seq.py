@@ -22,10 +22,6 @@ class Seq2Seq_GRU(nn.Module):
         #teacher_forcing_ratio: prob. to use teacher forcing
         #e.g. if 0.75, ground-truth imports are used 75% of the time
         
-        src.to(self.device) # get the data to the GPU!
-        trg.to(self.device)
-        # ^ this may be a very inefficient way of doing things.
-        
         batch_size = trg.shape[0]
         
         src_len = src.shape[1]
