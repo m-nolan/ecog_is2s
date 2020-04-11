@@ -117,7 +117,7 @@ criterion = nn.MSELoss()
 train_frac = 0.8
 test_frac = 0.2
 valid_frac = 0.0
-BATCH_SIZE = 1
+BATCH_SIZE = 10
 N_EPOCHS = 50
 CLIP = 1
 
