@@ -26,11 +26,20 @@ import time
 import datetime
 import os
 import sys
+import pickle as pkl
+
+import argparse
 
 import matplotlib.pyplot as plt
 
-import pickle as pkl
+# grab input arguments
+parser = argparse.ArgumentParser('Trains a seq2seq network on a section of example NHP PMC ECoG data.',add_help=True)
+parser.add_argument('--encoder-depth', metavar='enc_len', type=int, default=10, help='Sequence depth of the encoder network')
+parser.add_argument('--decoder-depth', metavar='enc_len', type=int, default=1, help='Sequence depth of the decoder network')
+parser.add_argument('--batch-size', metavar='batch_size', type=int, default=1, help='Data batch size')
+parser.add_argument('--num-epochs', metavar='num_epoch', type=int, default=1, help='Number of optimization epochs')
 
+args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
 
 # seed RNG for pytorch/np
 SEED = 5050
@@ -77,8 +86,8 @@ srate_down = 250
 # create dataset object from file
 srate = srate_in
 # data_in = np.double(data_in[:,:120*srate])
-enc_len = 250
-dec_len = 1
+enc_len = args.encoder_depth
+dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
 total_len_T = 1*60 # I just don't have that much time!
@@ -122,8 +131,8 @@ criterion = nn.MSELoss()
 train_frac = 0.8
 test_frac = 0.2
 valid_frac = 0.0
-BATCH_SIZE = 1000
-N_EPOCHS = 100
+BATCH_SIZE = args.batch_size
+N_EPOCHS = args.num_epochs
 CLIP = 1
 
 best_test_loss = float('inf')
@@ -139,34 +148,34 @@ ax = f.add_subplot(1,1,1)
 
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
-    
+
     start_time = time.time()
-    
+
     # get new train/test splits
     train_loader, test_loader, _ = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE)
-    
+
     print('Training Network:')
     train_loss[e_idx], trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP)
     train_batch_loss.append(trbl_)
     print('Testing Network:')
     test_loss[e_idx], tebl_ = Training.evaluate(model, test_loader, criterion)
     test_batch_loss.append(tebl_)
-    
+
     end_time = time.time()
-    
+
     epoch_mins, epoch_secs = Util.epoch_time(start_time, end_time)
-    
+
     if test_loss[e_idx] < best_test_loss:
         best_test_loss = test_loss[e_idx]
         torch.save(model.state_dict(), 'tut1-model.pt')
-    
+
     print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss[e_idx]:.3g}')
     print(f'\t Test Loss: {test_loss[e_idx]:.3g}')
-    
+
     ax.plot(e_idx,train_loss[e_idx],'b.')
     ax.plot(e_idx,test_loss[e_idx],'r.')
-    
+
     # print the figure; continuously overwrite (like a fun stock ticker)
     f.savefig('training_progress.png')
 
