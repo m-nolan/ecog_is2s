@@ -34,10 +34,10 @@ import matplotlib.pyplot as plt
 
 # grab input arguments
 parser = argparse.ArgumentParser('Trains a seq2seq network on a section of example NHP PMC ECoG data.',add_help=True)
-parser.add_argument('--encoder-depth', metavar='enc_len', type=int, default=10, help='Sequence depth of the encoder network')
-parser.add_argument('--decoder-depth', metavar='enc_len', type=int, default=1, help='Sequence depth of the decoder network')
-parser.add_argument('--batch-size', metavar='batch_size', type=int, default=1, help='Data batch size')
-parser.add_argument('--num-epochs', metavar='num_epoch', type=int, default=1, help='Number of optimization epochs')
+parser.add_argument('--encoder-depth', metavar='el', type=int, default=10, help='Sequence depth of the encoder network')
+parser.add_argument('--decoder-depth', metavar='dl', type=int, default=1, help='Sequence depth of the decoder network')
+parser.add_argument('--batch-size', metavar='b', type=int, default=1, help='Data batch size')
+parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Number of optimization epochs')
 
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
 
@@ -71,13 +71,8 @@ elif platform_name == 'linux':
     model_save_dir_path = '/home/mickey/models/pyt/seq2seq/'
 
 # make sure the output directory actually exists
-if os.path.exists(model_save_dir_path):
-else:
+if not os.path.exists(model_save_dir_path):
     os.makedirs(model_save_dir_path)
-    
-# create training session directory
-time_str = Util.time_str() # I may do well to pack this into util
-model_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}.pt'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
 
 data_in, data_param, data_mask = datareader.load_ecog_clfp_data(data_file_name=data_file_full_path)
 srate_in= data_param['srate']
@@ -157,6 +152,10 @@ test_batch_loss = []
 f = plt.figure()
 ax = f.add_subplot(1,1,1)
 
+# create training session directory
+time_str = Util.time_str() # I may do well to pack this into util
+session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
+os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
@@ -183,14 +182,14 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
                 'num_epochs': N_EPOCHS,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
+                'loss': best_test_loss,
                 'data_path': data_file_full_path,
                 'train_frac': train_frac,
                 'test_frac': test_frac,
                 'batch_size': BATCH_SIZE,
                 'encoder_length': enc_len,
-                'decoder_length': dec_len
-                }, model_save_path)
+                'decoder_length': dec_len,
+                }, os.path.join(session_save_path,'model_checkpoint.pt'))
 
     print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss[e_idx]:.3g}')
@@ -198,7 +197,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
     ax.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
     ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
-    ax.legend(pos=0)
+    ax.legend(loc=0)
 
     # print the figure; continuously overwrite (like a fun stock ticker)
-    f.savefig('training_progress.png')
+    f.savefig(os.path.join(session_save_path,'training_progress.png'))
