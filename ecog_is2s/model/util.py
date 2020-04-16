@@ -17,6 +17,5 @@ def epoch_time(start_time, end_time):
     elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
     return elapsed_mins, elapsed_secs
 
-# return a numstr for the current time, useful for model directories
 def time_str():
-    return datetime.strftime(datetime.now(),'%Y%m%d%H%M%S')
+    return datetime.strftime(datetime.now(),'%Y%m%d%H%M%s')
