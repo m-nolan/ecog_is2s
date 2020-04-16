@@ -59,6 +59,7 @@ if platform_name == 'darwin':
     # local machine
     data_file_full_path = '/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
     mask_file_path = "/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.mask.pkl"
+    model_save_dir_path = '/Volumes/Samsung_T5/aoLab/Data/models/pyt/seq2seq/'
 elif platform_name == 'linux2':
     # HYAK, baby!
     data_file_full_path = '/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/001/rec001.LM1_ECOG_3.clfp.dat'
@@ -67,6 +68,16 @@ elif platform_name == 'linux':
     # google cloud, don't fail me now
     data_file_full_path = '/home/mickey/rec001.LM1_ECOG_3.clfp.dat'
     mask_file_path = '/home/mickey/rec001.LM1_ECOG_3.clfp.mask.pkl'
+    model_save_dir_path = '/home/mickey/models/pyt/seq2seq/'
+
+# make sure the output directory actually exists
+if os.path.exists(model_save_dir_path):
+else:
+    os.makedirs(model_save_dir_path)
+    
+# create training session directory
+time_str = Util.time_str() # I may do well to pack this into util
+model_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}.pt'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
 
 data_in, data_param, data_mask = datareader.load_ecog_clfp_data(data_file_name=data_file_full_path)
 srate_in= data_param['srate']
@@ -167,17 +178,27 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
     if test_loss[e_idx] < best_test_loss:
         best_test_loss = test_loss[e_idx]
-        torch.save(model.state_dict(), 'tut1-model.pt')
+        torch.save({ # this needs to be made into a model class method!
+                'epoch': epoch,
+                'num_epochs': N_EPOCHS,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss,
+                'data_path': data_file_full_path,
+                'train_frac': train_frac,
+                'test_frac': test_frac,
+                'batch_size': BATCH_SIZE,
+                'encoder_length': enc_len,
+                'decoder_length': dec_len
+                }, model_save_path)
 
     print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss[e_idx]:.3g}')
     print(f'\t Test Loss: {test_loss[e_idx]:.3g}')
 
-    ax.plot(e_idx,train_loss[e_idx],'b.')
-    ax.plot(e_idx,test_loss[e_idx],'r.')
+    ax.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
+    ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
+    ax.legend(pos=0)
 
     # print the figure; continuously overwrite (like a fun stock ticker)
     f.savefig('training_progress.png')
-
-# save model
-
