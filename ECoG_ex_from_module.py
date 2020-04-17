@@ -96,7 +96,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 40*60 # I just don't have that much time!
+total_len_T = 1*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
@@ -110,6 +110,7 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 
 idx_all = np.arange(dataset.data.shape[0])
 sample_idx = idx_all[:-seq_len]
+plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len
@@ -155,21 +156,40 @@ ax = f.add_subplot(1,1,1)
 # create training session directory
 time_str = Util.time_str() # I may do well to pack this into util
 session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
+sequence_plot_path = os.path.join(session_save_path,'example_sequence_figs')
 os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
+os.makedirs(sequence_plot_path)
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
     start_time = time.time()
 
     # get new train/test splits
-    train_loader, test_loader, _ = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE)
+    train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, plot_seed=plot_seed_idx)
+    
+    # get plotting data loader
+    
 
     print('Training Network:')
     train_loss[e_idx], trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP)
     train_batch_loss.append(trbl_)
     print('Testing Network:')
-    test_loss[e_idx], tebl_ = Training.evaluate(model, test_loader, criterion)
+    test_loss[e_idx], tebl_, _ = Training.evaluate(model, test_loader, criterion)
     test_batch_loss.append(tebl_)
+    print('Running Figure Sequence:')
+    plot_loss, plbl_, plot_data_tuple = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
+    if not (epoch % 10):
+        # save the data for the plotting window in dict form
+        plot_data_dict = {
+            'src': plot_data_tuple[0],
+            'trg': plot_data_tuple[1],
+            'out': plot_data_tuple[2],
+            'srate': srate_down,
+        }
+        torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}.pt'.format(epoch)))
+        # pass data to plotting function for this window
+        f_eval,_ = Training.eval_plot(plot_data_dict)
+        f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}.png'.format(epoch)))
 
     end_time = time.time()
 
@@ -199,5 +219,5 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
     ax.legend(loc=0)
 
-    # print the figure; continuously overwrite (like a fun stock ticker)
+    # print the loss curve figure; continuously overwrite (like a fun stock ticker)
     f.savefig(os.path.join(session_save_path,'training_progress.png'))

@@ -7,6 +7,9 @@ import numpy as np
 import math
 import time
 
+import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 22}) # this may be a problem w/in a module?
+
 # not sure if this belongs here
 def train(model, iterator, optimizer, criterion, clip):
     
@@ -55,7 +58,7 @@ def train(model, iterator, optimizer, criterion, clip):
         
     return epoch_loss / len(iterator), np.array(batch_loss)
 
-def evaluate(model, iterator, criterion):
+def evaluate(model, iterator, criterion, plot_flag=False):
     
     model.eval()
     
@@ -80,23 +83,48 @@ def evaluate(model, iterator, criterion):
 
             output_dim = output.shape[-1]
 
-#             output = output[1:].view(-1, output_dim)
-#             trg = trg[1:].view(-1)
-
             #trg = [(trg len - 1) * batch size]
             #output = [(trg len - 1) * batch size, output dim]
             loss = criterion(output, trg)
 
             epoch_loss += loss.item()
             batch_loss.append(loss.item())
-
-#             bar.update(i/10000)
-
-#             if i > 10000:
-#                 break
-#             i += 1
+            
+        if plot_flag:
+            plot_output = (src,trg,output)
+        else:
+            plot_output = ()
         
-    return epoch_loss / len(iterator), np.array(batch_loss)
+    return epoch_loss / len(iterator), np.array(batch_loss), plot_output
+
+def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
+    # compute PCA dims from catted src/trg data
+    src = plot_dict['src'].squeeze(dim=0)
+    trg = plot_dict['trg'].squeeze(dim=0)
+    out = plot_dict['out'].squeeze(dim=0)
+#     print(plot_dict['src'].shape,plot_dict['trg'].shape)
+    full_train = np.vstack((src,trg))
+    full_train_n = full_train.shape[0]
+    full_train_mean = np.mean(full_train,axis=0)
+    full_train_cov = np.matmul((full_train-full_train_mean).T,(full_train-full_train_mean))
+    w, v = np.linalg.eig(full_train_cov) # w is the eval, v is the evec (columns)
+    target_red = np.matmul(trg,v[:,:n_pca])
+    output_red = np.matmul(out,v[:,:n_pca])
+    target_n = target_red.shape[0]
+    plot_t = np.arange(target_n)/plot_dict['srate']
+    print(plot_t)
+    f,ax = plt.subplots(n_pca,1,figsize=(figsize[0],n_pca*figsize[1]))
+    if n_pca == 1:
+        ax = [ax]
+    for n in range(n_pca):
+        ax[n].plot(plot_t,target_red[:,n],label='trg_{}'.format(n))
+        print(target_red[:,n])
+        ax[n].plot(plot_t,output_red[:,n],label='out_{}'.format(n))
+        print(output_red[:,n])
+        ax[n].legend(loc=0)
+        ax[n].set_xlabel('time (s)')
+        ax[n].set_ylabel('PC{}'.format(n))
+    return f, ax
 
 # silly tool to format epoch computation times
 def epoch_time(start_time, end_time):
@@ -105,31 +133,4 @@ def epoch_time(start_time, end_time):
     elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
     return elapsed_mins, elapsed_secs
 
-# # the actual training loop!
-# N_EPOCHS = 10 # hahahaha
-# CLIP = 1
-
-# best_valid_loss = float('inf')
-# for epoch in range(N_EPOCHS):
-#     start_time = time.time()
-    
-#     # the data splitter makes the training, validation and test sets.
-#     train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
-#     valid_loss = evaluate(model, valid_iterator, criterion)
-    
-#     end_time = time.time()
-    
-#     epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-    
-#     if valid_loss < best_valid_loss:
-#         best_valid_loss = valid_loss
-#         torch.save(model.state_dict(), 'ex1-model.pt')
-    
-#     print(f'Epoch: {epoch+1:02} | time: {epoch_mins}m {epoch_secs}s')
-#     print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-#     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
-
-# model.load_state_dict(torch.load('tut1-model.pt'))
-# test_loss = evaluate(model, test_iterator, criterion)
-
-# print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+# def plot_example_sequence(data_tuple,figsize=())

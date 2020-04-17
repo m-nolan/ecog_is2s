@@ -41,12 +41,12 @@ class EcogDataset(Dataset):
 #         return len(self.dl)
 
 # produce sequential dataloaders
-def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size ):
+def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, plot_seed=0):
     data_size = dataset.data.shape[0]
     idx_all = np.arange(data_size)
 #     smpl_idx_all = idx_all[:-seq_len:seq_len]
 
-    train_sampler, test_sampler, valid_sampler = genSamplers(sample_idx,train_frac,test_frac,valid_frac=valid_frac)
+    train_sampler, test_sampler, valid_sampler, plot_sampler = genSamplers(sample_idx,train_frac,test_frac,valid_frac=valid_frac,plot_seed=plot_seed)
 
     train_loader = DataLoader(dataset, 
                               batch_size=batch_size,
@@ -60,10 +60,14 @@ def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_si
                               batch_size=batch_size,
                               sampler=valid_sampler,
                               drop_last=True)
-    return train_loader, test_loader, valid_loader
+    plot_loader = DataLoader(dataset,
+                             batch_size=1,
+                             sampler=plot_sampler,
+                             drop_last=False)
+    return train_loader, test_loader, valid_loader, plot_loader
 
 
-def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, verbose=True ):
+def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, plot_seed=0, verbose=True ):
     n_samp = len(idx)
     shuffle_idx = randperm(n_samp)
     train_split = int(np.floor(train_frac*n_samp))
@@ -73,11 +77,13 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, verbose=True ):
     train_idx = idx[shuffle_idx[:train_split]]
     valid_idx = idx[shuffle_idx[train_split:train_split+valid_split]]
     test_idx = idx[shuffle_idx[train_split+valid_split:-1]]
+    plot_idx = np.array([idx[plot_seed]])
     if verbose:
-        print(train_idx.shape,test_idx.shape,valid_idx.shape)
+        print(train_idx.shape,test_idx.shape,valid_idx.shape,plot_idx.shape)
 
     train_sampler = SubsetRandomSampler(train_idx)
     test_sampler = SubsetRandomSampler(test_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
+    plot_sampler = SubsetRandomSampler(plot_idx)
     
-    return train_sampler, test_sampler, valid_sampler
+    return train_sampler, test_sampler, valid_sampler, plot_sampler
