@@ -102,7 +102,16 @@ data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
 data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
 
-data_tensor = torch.from_numpy(sp.stats.zscore(data_in.view().transpose()))
+# filter dead channels
+ch_std = np.std(data_in,axis=-1)
+ch_m = np.mean(ch_std)
+ch_low_lim = ch_m - 2*np.std(ch_std)
+ch_up_lim = ch_m + 2*np.std(ch_std)
+ch_idx = np.logical_and(np.arange(num_ch) > ch_low_lim, np.arange(num_ch) < ch_up_lim)
+ch_list = np.arange(num_ch)[ch_idx]
+
+#create data tensor
+data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose()))
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
