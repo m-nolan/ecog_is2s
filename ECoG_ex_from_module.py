@@ -103,12 +103,15 @@ print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
 data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
 
 # filter dead channels
-ch_std = np.std(data_in,axis=-1)
-ch_m = np.mean(ch_std)
-ch_low_lim = ch_m - 2*np.std(ch_std)
-ch_up_lim = ch_m + 2*np.std(ch_std)
-ch_idx = np.logical_and(np.arange(num_ch) > ch_low_lim, np.arange(num_ch) < ch_up_lim)
+ch_rms = np.std(data_in,axis=-1)
+ch_m = np.mean(ch_rms)
+ch_low_lim = ch_m - 2*np.std(ch_rms)
+ch_up_lim = ch_m + 2*np.std(ch_rms)
+ch_idx = np.logical_and(ch_rms > ch_low_lim, ch_rms < ch_up_lim)
 ch_list = np.arange(num_ch)[ch_idx]
+num_ch_down = len(ch_list)
+# print(num_ch_down)
+# print(ch_list)
 
 #create data tensor
 data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose()))
@@ -124,8 +127,8 @@ plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plottin
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len
 OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
-INPUT_DIM = num_ch
-OUTPUT_DIM = num_ch
+INPUT_DIM = num_ch_down
+OUTPUT_DIM = num_ch_down
 HID_DIM = num_ch
 N_ENC_LAYERS = 1 
 N_DEC_LAYERS = 1
