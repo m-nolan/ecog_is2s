@@ -99,9 +99,10 @@ def evaluate(model, iterator, criterion, plot_flag=False):
 
 def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
     # compute PCA dims from catted src/trg data
-    src = plot_dict['src'].squeeze(dim=0)
-    trg = plot_dict['trg'].squeeze(dim=0)
-    out = plot_dict['out'].squeeze(dim=0)
+    # make sure to push this frame back to the cpu!
+    src = plot_dict['src'].cpu().squeeze(dim=0)
+    trg = plot_dict['trg'].cpu().squeeze(dim=0)
+    out = plot_dict['out'].cpu().squeeze(dim=0)
 #     print(plot_dict['src'].shape,plot_dict['trg'].shape)
     full_train = np.vstack((src,trg))
     full_train_n = full_train.shape[0]
