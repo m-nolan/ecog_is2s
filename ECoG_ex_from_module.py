@@ -39,6 +39,8 @@ parser.add_argument('--decoder-depth', metavar='dl', type=int, default=1, help='
 parser.add_argument('--batch-size', metavar='b', type=int, default=1, help='Data batch size')
 parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Number of optimization epochs')
 
+print(args.encoder_depth,args.decoder_depth)
+
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
 
 # seed RNG for pytorch/np
@@ -135,8 +137,8 @@ N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
 
-enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, ENC_DROPOUT)
-dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, DEC_DROPOUT)
+enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, INPUT_SEQ_LEN, ENC_DROPOUT)
+dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, OUTPUT_SEQ_LEN, DEC_DROPOUT)
 
 model = Seq2Seq.Seq2Seq_GRU(enc, dec, device).to(device)
 model.apply(Util.init_weights)
