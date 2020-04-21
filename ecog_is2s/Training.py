@@ -103,7 +103,7 @@ def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
     src = plot_dict['src'].cpu().squeeze(dim=0)
     trg = plot_dict['trg'].cpu().squeeze(dim=0)
     out = plot_dict['out'].cpu().squeeze(dim=0)
-#     print(plot_dict['src'].shape,plot_dict['trg'].shape)
+    print(src.shape,trg.shape,out.shape)
     full_train = np.vstack((src,trg))
     full_train_n = full_train.shape[0]
     full_train_mean = np.mean(full_train,axis=0)
@@ -111,6 +111,7 @@ def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
     w, v = np.linalg.eig(full_train_cov) # w is the eval, v is the evec (columns)
     target_red = np.matmul(trg,v[:,:n_pca])
     output_red = np.matmul(out,v[:,:n_pca])
+    print(target_red.shape,output_red.shape)
     target_n = target_red.shape[0]
     plot_t = np.arange(target_n)/plot_dict['srate']
     print(plot_t)

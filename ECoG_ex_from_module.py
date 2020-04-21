@@ -40,6 +40,7 @@ parser.add_argument('--batch-size', metavar='b', type=int, default=1, help='Data
 parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Number of optimization epochs')
 
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
+print(args.encoder_depth,args.decoder_depth)
 
 # seed RNG for pytorch/np
 SEED = 5050
@@ -96,11 +97,12 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 60*60 # I just don't have that much time!
+total_len_T = 1*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
 data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
+print('Data Size:\t{}'.format(data_in.shape))
 
 # filter dead channels
 ch_rms = np.std(data_in,axis=-1)
@@ -110,8 +112,8 @@ ch_up_lim = ch_m + 2*np.std(ch_rms)
 ch_idx = np.logical_and(ch_rms > ch_low_lim, ch_rms < ch_up_lim)
 ch_list = np.arange(num_ch)[ch_idx]
 num_ch_down = len(ch_list)
-# print(num_ch_down)
-# print(ch_list)
+print('Num. ch. used:\t{}'.format(num_ch_down))
+print('Ch. kept:\t{}'.format(ch_list))
 
 #create data tensor
 data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose()))
@@ -129,7 +131,7 @@ INPUT_SEQ_LEN = enc_len
 OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
-HID_DIM = num_ch
+HID_DIM = num_ch_down
 N_ENC_LAYERS = 1 
 N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
