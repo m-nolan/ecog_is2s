@@ -35,16 +35,16 @@ class Seq2Seq_GRU(nn.Module):
         
         enc_state, hidden = self.encoder(src)
         
-        output = src[:,-1,:].unsqueeze(1) # start the decoder with the actual output
+        input_ = src[:,-1,:].unsqueeze(1) # start the decoder with the actual output
         
         for t in range(trg_len): # ignore that first data point
-            pred, output, hidden = self.decoder(output,hidden)
-            
+            # pred: the output of the linear layer, trained to track the ECoG data.
+            # output: the output of the decoder and input to the following fc linear layer.
+            # hidden: the hidden state of the decoder.
+            pred, output, hidden = self.decoder(input_,hidden)
             outputs[:,t,:] = pred.squeeze()
-            
             teacher_force = random.random() < teacher_forcing_ratio
-            
-            input = trg[:,t,:] if teacher_force else output
+            input_ = trg[:,t,:].unsqueeze(1) if teacher_force else pred # the next input is the current predicted value.
         
         return outputs
     

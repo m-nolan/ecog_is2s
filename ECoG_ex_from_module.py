@@ -98,7 +98,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 1*60 # I just don't have that much time!
+total_len_T = 60*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
