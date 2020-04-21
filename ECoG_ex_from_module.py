@@ -99,7 +99,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 1*60 # I just don't have that much time!
+total_len_T = 60*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
@@ -125,7 +125,8 @@ print(data_tensor.size)
 dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own Dataset class
 
 idx_all = np.arange(dataset.data.shape[0])
-sample_idx = idx_all[:-seq_len]
+idx_step = 1*srate_down
+sample_idx = idx_all[:-seq_len:idx_step]
 plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
