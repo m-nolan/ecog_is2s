@@ -231,10 +231,13 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss[e_idx]:.3g}')
     print(f'\t Test Loss: {test_loss[e_idx]:.3g}')
-
-    ax.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
-    ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
-    ax.legend(loc=0)
+    if e_idx == 0:
+        ax.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
+        ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
+        ax.legend(loc=0)
+    else:
+        ax.plot(e_idx,train_loss[e_idx],'b.')
+        ax.plot(e_idx,test_loss[e_idx],'r.')
 
     # print the loss curve figure; continuously overwrite (like a fun stock ticker)
     f.savefig(os.path.join(session_save_path,'training_progress.png'))
