@@ -125,7 +125,7 @@ print(data_tensor.size)
 dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own Dataset class
 
 idx_all = np.arange(dataset.data.shape[0])
-idx_step = 1*srate_down
+idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
 plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
@@ -134,7 +134,7 @@ INPUT_SEQ_LEN = enc_len
 OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
-HID_DIM = num_ch_down
+HID_DIM = 4*num_ch_down
 N_ENC_LAYERS = 1 
 N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
