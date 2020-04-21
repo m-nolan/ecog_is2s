@@ -22,8 +22,7 @@ class Decoder_GRU(nn.Module):
         # hidden = [n layers, batch size, hid dim]
         
 #         input_data = input_data.unsqueeze(0) # not sure if this this is needed for not-embedded inputs
-        if len(input_data.size()) != 3 or len(hidden.size()) != 3:
-            breakpoint()
+#         breakpoint()
         output, hidden = self.rnn(input_data, hidden)
         
         #output = [seq len, batch size, hid dim * n directions]

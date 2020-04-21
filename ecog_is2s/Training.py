@@ -18,8 +18,8 @@ def train(model, iterator, optimizer, criterion, clip):
     epoch_loss = 0
     batch_loss = []
     
-    enc_len = model.enc.seq_len
-    dec_len = model.dec.seq_len
+    enc_len = model.encoder.seq_len
+    dec_len = model.decoder.seq_len
     
     for i, batch in enumerate(iterator):
         if np.mod(i+1,1000) == 0:
@@ -30,7 +30,7 @@ def train(model, iterator, optimizer, criterion, clip):
             trg = trg.unsqueeze(1)
 
         optimizer.zero_grad()
-
+#         breakpoint()
         output = model(src, trg)
 
         #trg = [batch size, trg len, output dim]
@@ -69,8 +69,8 @@ def evaluate(model, iterator, criterion, plot_flag=False):
     epoch_loss = 0
     batch_loss = []
     
-    enc_len = model.enc.seq_len
-    dec_len = model.dec.seq_len
+    enc_len = model.encoder.seq_len
+    dec_len = model.decoder.seq_len
     
     with torch.no_grad():
 #         widgets = [pb.Percentage(), progressbar.Bar()]

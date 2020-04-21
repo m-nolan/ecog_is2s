@@ -39,9 +39,9 @@ parser.add_argument('--decoder-depth', metavar='dl', type=int, default=1, help='
 parser.add_argument('--batch-size', metavar='b', type=int, default=1, help='Data batch size')
 parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Number of optimization epochs')
 
-print(args.encoder_depth,args.decoder_depth)
-
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
+
+print(args.encoder_depth,args.decoder_depth)
 
 # seed RNG for pytorch/np
 SEED = 5050
@@ -131,7 +131,7 @@ INPUT_SEQ_LEN = enc_len
 OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
-HID_DIM = num_ch
+HID_DIM = num_ch_down
 N_ENC_LAYERS = 1 
 N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
