@@ -3,11 +3,12 @@ import torch.nn as nn
 
 # encoder class
 class Encoder_GRU(nn.Module):
-    def __init__(self, input_dim, hid_dim, n_layers, dropout):
+    def __init__(self, input_dim, hid_dim, n_layers, seq_len, dropout):
         super().__init__()
         self.input_dim = input_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
+        self.seq_len = seq_len
         
         # gated recurrent layer, dropout layer
         self.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)

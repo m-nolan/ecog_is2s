@@ -42,6 +42,8 @@ parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Numb
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
 print(args.encoder_depth,args.decoder_depth)
 
+print(args.encoder_depth,args.decoder_depth)
+
 # seed RNG for pytorch/np
 SEED = 5050
 random.seed(SEED)
@@ -137,8 +139,8 @@ N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
 
-enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, ENC_DROPOUT)
-dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, DEC_DROPOUT)
+enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, INPUT_SEQ_LEN, ENC_DROPOUT)
+dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, OUTPUT_SEQ_LEN, DEC_DROPOUT)
 
 model = Seq2Seq.Seq2Seq_GRU(enc, dec, device).to(device)
 model.apply(Util.init_weights)

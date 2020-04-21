@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 
 class Decoder_GRU(nn.Module):
-    def __init__(self, output_dim, hid_dim, n_layers, dropout):
+    def __init__(self, output_dim, hid_dim, n_layers, seq_len, dropout):
         super().__init__()
         
         self.output_dim = output_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
+        self.seq_len = seq_len
         
-        self.rnn = nn.GRU(hid_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
+        self.rnn = nn.GRU(output_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
         self.fc_out = nn.Linear(hid_dim, output_dim)
         self.dropout = nn.Dropout(dropout)
         
@@ -21,8 +22,7 @@ class Decoder_GRU(nn.Module):
         # hidden = [n layers, batch size, hid dim]
         
 #         input_data = input_data.unsqueeze(0) # not sure if this this is needed for not-embedded inputs
-        if len(input_data.size()) != 3 or len(hidden.size()) != 3:
-            breakpoint()
+#         breakpoint()
         output, hidden = self.rnn(input_data, hidden)
         
         #output = [seq len, batch size, hid dim * n directions]

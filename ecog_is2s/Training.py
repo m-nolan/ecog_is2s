@@ -17,16 +17,20 @@ def train(model, iterator, optimizer, criterion, clip):
     
     epoch_loss = 0
     batch_loss = []
-#     widgets = [pb.Percentage(), progressbar.Bar()]
-#     bar = pb.ProgressBar(widgets=widgets).start()
+    
+    enc_len = model.encoder.seq_len
+    dec_len = model.decoder.seq_len
+    
     for i, batch in enumerate(iterator):
         if np.mod(i+1,1000) == 0:
             print(i,len(iterator))
-        src = batch[:,:-1,:]
-        trg = batch[:,-1,:].unsqueeze(1) # otherwise it would automatically cut this out.
+        src = batch[:,:enc_len,:]
+        trg = batch[:,enc_len:enc_len+dec_len,:]
+        if dec_len == 1:
+            trg = trg.unsqueeze(1)
 
         optimizer.zero_grad()
-
+#         breakpoint()
         output = model(src, trg)
 
         #trg = [batch size, trg len, output dim]
@@ -65,6 +69,9 @@ def evaluate(model, iterator, criterion, plot_flag=False):
     epoch_loss = 0
     batch_loss = []
     
+    enc_len = model.encoder.seq_len
+    dec_len = model.decoder.seq_len
+    
     with torch.no_grad():
 #         widgets = [pb.Percentage(), progressbar.Bar()]
 #         bar = pb.ProgressBar(widgets=widgets).start()
@@ -73,8 +80,10 @@ def evaluate(model, iterator, criterion, plot_flag=False):
 
             if np.mod(i+1,1000)==0:
                 print(i,len(iterator))
-            src = batch[:,:-1,:]
-            trg = batch[:,-1,:].unsqueeze(1)
+            src = batch[:,:enc_len,:]
+            trg = batch[:,enc_len:enc_len+dec_len,:]
+            if dec_len == 1:
+                trg = trg.unsqueeze(1)
 
             output = model(src, trg, 0.) #turn off teacher forcing
 
