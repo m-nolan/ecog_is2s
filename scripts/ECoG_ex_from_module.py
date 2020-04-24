@@ -202,6 +202,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             'trg': plot_data_tuple[1],
             'out': plot_data_tuple[2],
             'srate': srate_down,
+            'state_dict': model.state_dict(),
         }
         torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}.pt'.format(epoch)))
         # pass data to plotting function for this window

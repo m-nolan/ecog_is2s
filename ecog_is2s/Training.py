@@ -123,15 +123,15 @@ def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
     print(target_red.shape,output_red.shape)
     target_n = target_red.shape[0]
     plot_t = np.arange(target_n)/plot_dict['srate']
-    print(plot_t)
+#     print(plot_t)
     f,ax = plt.subplots(n_pca,1,figsize=(figsize[0],n_pca*figsize[1]))
     if n_pca == 1:
         ax = [ax]
     for n in range(n_pca):
         ax[n].plot(plot_t,target_red[:,n],label='trg_{}'.format(n))
-        print(target_red[:,n])
+#         print(target_red[:,n])
         ax[n].plot(plot_t,output_red[:,n],label='out_{}'.format(n))
-        print(output_red[:,n])
+#         print(output_red[:,n])
         ax[n].legend(loc=0)
         ax[n].set_xlabel('time (s)')
         ax[n].set_ylabel('PC{}'.format(n))

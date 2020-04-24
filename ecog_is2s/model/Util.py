@@ -18,4 +18,4 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 def time_str():
-    return datetime.strftime(datetime.now(),'%Y%m%d%H%M%s')
+    return datetime.strftime(datetime.now(),'%Y%m%d%H%M%S%f')
