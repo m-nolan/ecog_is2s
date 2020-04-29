@@ -135,7 +135,7 @@ OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
-N_ENC_LAYERS = 1 
+N_ENC_LAYERS = 1
 N_DEC_LAYERS = 1
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
@@ -158,6 +158,7 @@ valid_frac = 0.0
 BATCH_SIZE = args.batch_size
 N_EPOCHS = args.num_epochs
 CLIP = 1
+RAND_SAMP = False
 
 best_test_loss = float('inf')
 
@@ -182,10 +183,8 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     start_time = time.time()
 
     # get new train/test splits
-    train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, plot_seed=plot_seed_idx)
-    
-    # get plotting data loader
-    
+    # note: add switch to genLoaders to allow for fixed/random sampling
+    train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, rand_samp=RAND_SAMP, plot_seed=plot_seed_idx)
 
     print('Training Network:')
     train_loss[e_idx], trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP)
@@ -194,20 +193,22 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     test_loss[e_idx], tebl_, _ = Training.evaluate(model, test_loader, criterion)
     test_batch_loss.append(tebl_)
     print('Running Figure Sequence:')
-    plot_loss, plbl_, plot_data_tuple = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
+    plot_loss, plbl_, plot_data_list = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
     if not (epoch % 10):
         # save the data for the plotting window in dict form
-        plot_data_dict = {
-            'src': plot_data_tuple[0],
-            'trg': plot_data_tuple[1],
-            'out': plot_data_tuple[2],
-            'srate': srate_down,
-            'state_dict': model.state_dict(),
-        }
-        torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}.pt'.format(epoch)))
-        # pass data to plotting function for this window
-        f_eval,_ = Training.eval_plot(plot_data_dict)
-        f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}.png'.format(epoch)))
+        torch.save(model.state_dict(),os.path.join(sequence_plot_path,'model_epoch{}_{}.pt'.format(epoch,k)))
+        for k in range(len(plot_data_list)):
+            plot_data_dict = {
+                'src': plot_data_list[k][0],
+                'trg': plot_data_list[k][1],
+                'out': plot_data_list[k][2],
+                'srate': srate_down,
+                # 'state_dict': model.state_dict(), # putting this in every file is redundant
+            }
+            torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}_{}.pt'.format(epoch,k)))
+            # pass data to plotting function for this window
+            f_eval,_ = Training.eval_plot(plot_data_dict)
+            f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}_{}.png'.format(epoch,k)))
 
     end_time = time.time()
 
