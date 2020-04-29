@@ -118,7 +118,15 @@ print('Num. ch. used:\t{}'.format(num_ch_down))
 print('Ch. kept:\t{}'.format(ch_list))
 
 #create data tensor
-data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose()))
+data_rail = np.max(np.abs(data_in.reshape(-1)))
+# normalization = 'zscore'
+normalization = 'max'
+if normalization is 'max':
+    data_tensor = torch.from_numpy(data_in[ch_idx,:].view().transpose()/data_rail)
+elif normalization is 'zscore':
+    # for nominally gaussian data distributions, this will get ~99% of data points in (-1, 1)
+    data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/5)
+
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
