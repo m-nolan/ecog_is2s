@@ -119,12 +119,14 @@ print('Ch. kept:\t{}'.format(ch_list))
 #create data tensor
 data_rail = np.max(np.abs(data_in.reshape(-1)))
 # normalization = 'zscore'
-normalization = 'max'
+normalization = 'tanh'
 if normalization is 'max':
     data_tensor = torch.from_numpy(data_in[ch_idx,:].view().transpose()/data_rail)
 elif normalization is 'zscore':
     # for nominally gaussian data distributions, this will get ~99% of data points in (-1, 1)
     data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/5)
+elif normalization is 'tanh':
+    data_tensor = torch.from_numpy(np.tanh(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/3))
 
 if device == 'cuda:0':
     data_tensor.cuda()
@@ -143,8 +145,9 @@ OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
-N_ENC_LAYERS = num_layers 
-N_DEC_LAYERS = num_layers
+N_LAYER = 1
+N_ENC_LAYERS = N_LAYER
+N_DEC_LAYERS = N_LAYER
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
 
@@ -175,10 +178,6 @@ train_batch_loss = []
 test_loss = np.zeros(N_EPOCHS)
 test_batch_loss = []
 
-# make figure (and a place to save it)
-f = plt.figure()
-ax = f.add_subplot(1,1,1)
-
 # create training session directory
 time_str = Util.time_str() # I may do well to pack this into util
 session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
@@ -189,6 +188,10 @@ os.makedirs(sequence_plot_path)
 f,ax = plt.subplots(1,1,figsize=(6,4))
 ax.hist(dataset.data.reshape(-1),100,density=True)
 f.savefig(os.path.join(session_save_path,'norm_data_hist.png'))
+
+# make figure (and a place to save it)
+f_loss = plt.figure()
+ax_loss = f_loss.add_subplot(1,1,1)
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
@@ -246,12 +249,13 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     print(f'\tTrain Loss: {train_loss[e_idx]:.3g}')
     print(f'\t Test Loss: {test_loss[e_idx]:.3g}')
     if e_idx == 0:
-        ax.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
-        ax.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
-        ax.legend(loc=0)
+        ax_loss.plot(e_idx,train_loss[e_idx],'b.',label='train loss')
+        ax_loss.plot(e_idx,test_loss[e_idx],'r.',label='valid. loss')
+        ax_loss.legend(loc=0)
     else:
-        ax.plot(e_idx,train_loss[e_idx],'b.')
-        ax.plot(e_idx,test_loss[e_idx],'r.')
-
+        ax_loss.plot(e_idx,train_loss[e_idx],'b.')
+        ax_loss.plot(e_idx,test_loss[e_idx],'r.')
+    ax_loss.set_ylim(bottom=0,top=1.5*np.max(train_loss))
     # print the loss curve figure; continuously overwrite (like a fun stock ticker)
-    f.savefig(os.path.join(session_save_path,'training_progress.png'))
+    f_loss.savefig(os.path.join(session_save_path,'training_progress.png'))
+    torch.save({'train_loss':train_loss,'test_loss':test_loss,},os.path.join(session_save_path,'training_progress.pt'))
