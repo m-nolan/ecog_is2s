@@ -135,7 +135,7 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.array(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+plot_seed_idx = np.arange(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len
@@ -222,6 +222,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             # pass data to plotting function for this window
             f_eval,_ = Training.eval_plot(plot_data_dict)
             f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}_{}.png'.format(epoch,k)))
+            plt.close(f_eval)
 
     end_time = time.time()
 

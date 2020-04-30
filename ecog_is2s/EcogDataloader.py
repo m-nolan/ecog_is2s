@@ -71,6 +71,8 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, pl
     train_idx = idx[shuffle_idx[:train_split]]
     valid_idx = idx[shuffle_idx[train_split:train_split+valid_split]]
     test_idx = idx[shuffle_idx[train_split+valid_split:-1]]
+    print('plot_seed:\t'.format(plot_seed))
+    print(train_idx[plot_seed], test_idx[plot_seed])
     plot_idx = np.concatenate((train_idx[plot_seed], test_idx[plot_seed]))#, valid_idx[plot_seed]])
     if verbose:
         print(train_idx.shape,test_idx.shape,valid_idx.shape,plot_idx.shape)
