@@ -18,6 +18,7 @@ class EcogDataset(Dataset):
         self.device = device
         self.block_len = int(block_len)
         self.data_len = self.data.shape[0]
+        self.n_ch = self.data.shape[-1]
 
     def __len__(self):
         return self.data.shape[0] // self.block_len #?
@@ -62,7 +63,7 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, pl
     if rand_samp:
         shuffle_idx = randperm(n_samp)
     else: # this gives a straight p_tr, p_te, p_va split of the data. Will add more flexible breaks later. \////\
-        suffle_idx = np.arange(n_samp)
+        shuffle_idx = np.arange(n_samp)
     train_split = int(np.floor(train_frac*n_samp))
     valid_split = int(np.floor(valid_frac*n_samp)) # save this for a more
     test_split = int(np.floor(test_frac*n_samp))
@@ -70,7 +71,7 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, pl
     train_idx = idx[shuffle_idx[:train_split]]
     valid_idx = idx[shuffle_idx[train_split:train_split+valid_split]]
     test_idx = idx[shuffle_idx[train_split+valid_split:-1]]
-    plot_idx = np.array([train_idx[plot_seed], test_idx[plot_seed], valid_idx[plot_seed]])
+    plot_idx = np.array([train_idx[plot_seed], test_idx[plot_seed]])#, valid_idx[plot_seed]])
     if verbose:
         print(train_idx.shape,test_idx.shape,valid_idx.shape,plot_idx.shape)
 

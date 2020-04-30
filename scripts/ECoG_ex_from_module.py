@@ -2,9 +2,7 @@
 # coding: utf-8
 
 from aopy import datareader, datafilter
-from ecog_is2s import EcogDataloader, Training
-from ecog_is2s.model import Encoder, Decoder, Seq2Seq
-from ecog_is2s.model import Util
+from ecog_is2s import EcogDataloader, Training, Encoder, Decoder, Seq2Seq, Util
 
 import torch
 import torch.nn as nn
@@ -99,7 +97,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 60*60 # I just don't have that much time!
+total_len_T = 1*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
@@ -135,7 +133,7 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+plot_seed_idx = np.array(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len
@@ -185,6 +183,10 @@ session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.forma
 sequence_plot_path = os.path.join(session_save_path,'example_sequence_figs')
 os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 os.makedirs(sequence_plot_path)
+# save a histogram of the data distribution; allowing you to check
+f,ax = plt.subplots(1,1,figsize=(6,4),density=True)
+ax.hist(dataset.data.reshape(-1),100)
+f.savefig(os.path.join(session_save_path,'norm_data_hist.png'))
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
@@ -204,7 +206,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     plot_loss, plbl_, plot_data_list = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
     if not (epoch % 10):
         # save the data for the plotting window in dict form
-        torch.save(model.state_dict(),os.path.join(sequence_plot_path,'model_epoch{}_{}.pt'.format(epoch,k)))
+        torch.save(model.state_dict(),os.path.join(sequence_plot_path,'model_epoch{}.pt'.format(epoch)))
         for k in range(len(plot_data_list)):
             plot_data_dict = {
                 'src': plot_data_list[k][0],
