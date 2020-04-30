@@ -136,7 +136,7 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.array(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+plot_seed_idx = np.arange(0,201,10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
 num_layers = args.num_layers
@@ -145,7 +145,7 @@ OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
-N_LAYER = 1
+N_LAYER = 2
 N_ENC_LAYERS = N_LAYER
 N_DEC_LAYERS = N_LAYER
 ENC_DROPOUT = np.float32(0.5)
@@ -255,7 +255,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     else:
         ax_loss.plot(e_idx,train_loss[e_idx],'b.')
         ax_loss.plot(e_idx,test_loss[e_idx],'r.')
-    ax_loss.set_ylim(bottom=0,top=1.5*np.max(train_loss))
+    ax_loss.set_ylim(bottom=0,top=1.05*np.concatenate((train_loss,test_loss)).max())
     # print the loss curve figure; continuously overwrite (like a fun stock ticker)
     f_loss.savefig(os.path.join(session_save_path,'training_progress.png'))
     torch.save({'train_loss':train_loss,'test_loss':test_loss,},os.path.join(session_save_path,'training_progress.pt'))
