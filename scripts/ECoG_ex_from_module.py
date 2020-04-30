@@ -98,7 +98,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 1*60 # I just don't have that much time!
+total_len_T = 60*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
@@ -186,8 +186,8 @@ sequence_plot_path = os.path.join(session_save_path,'example_sequence_figs')
 os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 os.makedirs(sequence_plot_path)
 # save a histogram of the data distribution; allowing you to check
-f,ax = plt.subplots(1,1,figsize=(6,4),density=True)
-ax.hist(dataset.data.reshape(-1),100)
+f,ax = plt.subplots(1,1,figsize=(6,4))
+ax.hist(dataset.data.reshape(-1),100,density=True)
 f.savefig(os.path.join(session_save_path,'norm_data_hist.png'))
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
