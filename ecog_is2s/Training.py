@@ -8,19 +8,18 @@ import math
 import time
 
 import matplotlib.pyplot as plt
-plt.rcParams.update({'font.size': 22}) # this may be a problem w/in a module?
 
 # not sure if this belongs here
 def train(model, iterator, optimizer, criterion, clip):
-    
+
     model.train()
-    
+
     epoch_loss = 0
     batch_loss = []
-    
+
     enc_len = model.encoder.seq_len
     dec_len = model.decoder.seq_len
-    
+
     for i, batch in enumerate(iterator):
         if np.mod(i+1,1000) == 0:
             print(i,len(iterator))
@@ -59,23 +58,30 @@ def train(model, iterator, optimizer, criterion, clip):
 
 #         if i > 10000:
 #             break
-        
+
     return epoch_loss / len(iterator), np.array(batch_loss)
 
 def evaluate(model, iterator, criterion, plot_flag=False):
-    
+
     model.eval()
-    
+
     epoch_loss = 0
     batch_loss = []
-    
+
     enc_len = model.encoder.seq_len
     dec_len = model.decoder.seq_len
-    
+
+    n_ch = iterator.dataset.n_ch
+
     with torch.no_grad():
 #         widgets = [pb.Percentage(), progressbar.Bar()]
 #         bar = pb.ProgressBar(widgets=widgets).start()
 #         i = 0
+        if plot_flag:
+            src_ = torch.zeros(len(iterator),enc_len,n_ch)
+            trg_ = torch.zeros(len(iterator),dec_len,n_ch)
+            out_ = torch.zeros(len(iterator),dec_len,n_ch)
+
         for i, batch in enumerate(iterator):
 
             if np.mod(i+1,1000)==0:
@@ -86,55 +92,81 @@ def evaluate(model, iterator, criterion, plot_flag=False):
                 trg = trg.unsqueeze(1)
 
             output = model(src, trg, 0.) #turn off teacher forcing
+            if plot_flag:
+                src_[i,] = src
+                trg_[i,] = trg
+                out_[i,] = output
 
-            #trg = [trg len, batch size]
-            #output = [trg len, batch size, output dim]
+            #trg = [batch size, trg len]
+            #output = [batch size, trg len, output dim]
 
             output_dim = output.shape[-1]
-
-            #trg = [(trg len - 1) * batch size]
-            #output = [(trg len - 1) * batch size, output dim]
             loss = criterion(output, trg)
-
             epoch_loss += loss.item()
             batch_loss.append(loss.item())
-            
+
+        num_batch = i+1
         if plot_flag:
-            plot_output = (src,trg,output)
+            print('num batch:\t{}'.format(num_batch))
+            print(src.size(),trg.size(),output.size())
+            plot_output = []
+            for k in range(num_batch):
+                plot_output.append((src_[k,],trg_[k,],out_[k,]))
         else:
-            plot_output = ()
-        
+            plot_output = []
+
+    # there may be a bug in the loss normalization here
     return epoch_loss / len(iterator), np.array(batch_loss), plot_output
 
-def eval_plot(plot_dict,figsize=(10,8),n_pca=1):
+def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
     # compute PCA dims from catted src/trg data
     # make sure to push this frame back to the cpu!
-    src = plot_dict['src'].cpu().squeeze(dim=0)
-    trg = plot_dict['trg'].cpu().squeeze(dim=0)
-    out = plot_dict['out'].cpu().squeeze(dim=0)
+    src = plot_dict['src'].cpu()#.squeeze(dim=0)
+    trg = plot_dict['trg'].cpu()#.squeeze(dim=0)
+    out = plot_dict['out'].cpu()#.squeeze(dim=0)
     print(src.shape,trg.shape,out.shape)
-    full_train = np.vstack((src,trg))
-    full_train_n = full_train.shape[0]
-    full_train_mean = np.mean(full_train,axis=0)
-    full_train_cov = np.matmul((full_train-full_train_mean).T,(full_train-full_train_mean))
-    w, v = np.linalg.eig(full_train_cov) # w is the eval, v is the evec (columns)
-    target_red = np.matmul(trg,v[:,:n_pca])
-    output_red = np.matmul(out,v[:,:n_pca])
-    print(target_red.shape,output_red.shape)
-    target_n = target_red.shape[0]
-    plot_t = np.arange(target_n)/plot_dict['srate']
-    print(plot_t)
-    f,ax = plt.subplots(n_pca,1,figsize=(figsize[0],n_pca*figsize[1]))
-    if n_pca == 1:
-        ax = [ax]
-    for n in range(n_pca):
-        ax[n].plot(plot_t,target_red[:,n],label='trg_{}'.format(n))
-        print(target_red[:,n])
-        ax[n].plot(plot_t,output_red[:,n],label='out_{}'.format(n))
-        print(output_red[:,n])
-        ax[n].legend(loc=0)
-        ax[n].set_xlabel('time (s)')
-        ax[n].set_ylabel('PC{}'.format(n))
+    # n_win = src.shape(0) # each plotted window will be a separate batch here
+    n_t = trg.shape[0]
+    n_ch = trg.shape[-1]
+    n_c = 8
+    n_r = 8
+    # if n_pca > 0:
+    #     # change this to a 'do nothing' switch; PCA isn't proven yet
+    #     print(target_red.shape,output_red.shape)
+    #     target_n = target_red.shape[0]
+    #     plot_t = np.arange(target_n)/plot_dict['srate']
+    # #     print(plot_t)
+    #     f,ax = plt.subplots(n_pca,1,figsize=(figsize[0],n_pca*figsize[1]))
+    #     if n_pca == 1:
+    #         ax = [ax]
+    #     for n in range(n_pca):
+    #         ax[n].plot(plot_t,target_red[:,n],label='trg_{}'.format(n))
+    # #         print(target_red[:,n])
+    #         ax[n].plot(plot_t,output_red[:,n],label='out_{}'.format(n))
+    # #         print(output_red[:,n])
+    #         ax[n].legend(loc=0)
+    #         ax[n].set_xlabel('time (s)')
+    #         ax[n].set_ylabel('PC{}'.format(n))
+    # elif:
+    plot_t = np.arange(n_t)/plot_dict['srate']
+    plt.rcParams.update({'font.size': 8}) # this may be a problem w/in a module?
+    f,ax = plt.subplots(n_r,n_c,figsize=figsize)
+    # [a.set_xticks]
+    for n in range(n_r*n_c):
+        r_idx = n // n_c
+        c_idx = n % n_c
+        if n < n_ch:
+            ax[r_idx,c_idx].plot(plot_t,trg[:,n])
+            ax[r_idx,c_idx].plot(plot_t,out[:,n])
+            ax[r_idx,c_idx].get_xaxis().set_ticks([])
+            ax[r_idx,c_idx].get_yaxis().set_ticks([])
+            # ax[r_idx,c_idx].legend('{}'.format(n))
+        plt.sca(ax[r_idx,c_idx])
+        plt.box(on=False)
+        plt.xticks([])
+        plt.yticks([])
+    ax[r_idx,0].set_xlabel('time (s)')
+
     return f, ax
 
 # silly tool to format epoch computation times

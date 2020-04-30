@@ -2,9 +2,7 @@
 # coding: utf-8
 
 from aopy import datareader, datafilter
-from ecog_is2s import EcogDataloader, Training
-from ecog_is2s.model import Encoder, Decoder, Seq2Seq
-from ecog_is2s.model import Util
+from ecog_is2s import EcogDataloader, Training, Encoder, Decoder, Seq2Seq, Util
 
 import torch
 import torch.nn as nn
@@ -100,7 +98,7 @@ enc_len = args.encoder_depth
 dec_len = args.decoder_depth
 seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
-total_len_T = 60*60 # I just don't have that much time!
+total_len_T = 1*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
@@ -119,7 +117,15 @@ print('Num. ch. used:\t{}'.format(num_ch_down))
 print('Ch. kept:\t{}'.format(ch_list))
 
 #create data tensor
-data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose()))
+data_rail = np.max(np.abs(data_in.reshape(-1)))
+# normalization = 'zscore'
+normalization = 'max'
+if normalization is 'max':
+    data_tensor = torch.from_numpy(data_in[ch_idx,:].view().transpose()/data_rail)
+elif normalization is 'zscore':
+    # for nominally gaussian data distributions, this will get ~99% of data points in (-1, 1)
+    data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/5)
+
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
@@ -128,7 +134,7 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.array(0) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+plot_seed_idx = np.array(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
 
 # build the model, initialize
 num_layers = args.num_layers
@@ -160,6 +166,7 @@ valid_frac = 0.0
 BATCH_SIZE = args.batch_size
 N_EPOCHS = args.num_epochs
 CLIP = 1
+RAND_SAMP = False
 
 best_test_loss = float('inf')
 
@@ -178,16 +185,18 @@ session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.forma
 sequence_plot_path = os.path.join(session_save_path,'example_sequence_figs')
 os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 os.makedirs(sequence_plot_path)
+# save a histogram of the data distribution; allowing you to check
+f,ax = plt.subplots(1,1,figsize=(6,4),density=True)
+ax.hist(dataset.data.reshape(-1),100)
+f.savefig(os.path.join(session_save_path,'norm_data_hist.png'))
 
 for e_idx, epoch in enumerate(range(N_EPOCHS)):
 
     start_time = time.time()
 
     # get new train/test splits
-    train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, plot_seed=plot_seed_idx)
-    
-    # get plotting data loader
-    
+    # note: add switch to genLoaders to allow for fixed/random sampling
+    train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, rand_samp=RAND_SAMP, plot_seed=plot_seed_idx)
 
     print('Training Network:')
     train_loss[e_idx], trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP)
@@ -196,19 +205,22 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     test_loss[e_idx], tebl_, _ = Training.evaluate(model, test_loader, criterion)
     test_batch_loss.append(tebl_)
     print('Running Figure Sequence:')
-    plot_loss, plbl_, plot_data_tuple = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
+    plot_loss, plbl_, plot_data_list = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
     if not (epoch % 10):
         # save the data for the plotting window in dict form
-        plot_data_dict = {
-            'src': plot_data_tuple[0],
-            'trg': plot_data_tuple[1],
-            'out': plot_data_tuple[2],
-            'srate': srate_down,
-        }
-        torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}.pt'.format(epoch)))
-        # pass data to plotting function for this window
-        f_eval,_ = Training.eval_plot(plot_data_dict)
-        f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}.png'.format(epoch)))
+        torch.save(model.state_dict(),os.path.join(sequence_plot_path,'model_epoch{}.pt'.format(epoch)))
+        for k in range(len(plot_data_list)):
+            plot_data_dict = {
+                'src': plot_data_list[k][0],
+                'trg': plot_data_list[k][1],
+                'out': plot_data_list[k][2],
+                'srate': srate_down,
+                # 'state_dict': model.state_dict(), # putting this in every file is redundant
+            }
+            torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}_{}.pt'.format(epoch,k)))
+            # pass data to plotting function for this window
+            f_eval,_ = Training.eval_plot(plot_data_dict)
+            f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}_{}.png'.format(epoch,k)))
 
     end_time = time.time()
 
