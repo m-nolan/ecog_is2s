@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 from torch import randperm
-from torch.utils.data.sampler import SubsetRandomSampler
+from torch.utils.data.sampler import SubsetRandomSampler, SequentialSampler
 
 import numpy as np
 
@@ -71,13 +71,13 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, pl
     train_idx = idx[shuffle_idx[:train_split]]
     valid_idx = idx[shuffle_idx[train_split:train_split+valid_split]]
     test_idx = idx[shuffle_idx[train_split+valid_split:-1]]
-    plot_idx = np.array([train_idx[plot_seed], test_idx[plot_seed]])#, valid_idx[plot_seed]])
+    plot_idx = np.concatenate((train_idx[plot_seed], test_idx[plot_seed]))#, valid_idx[plot_seed]])
     if verbose:
         print(train_idx.shape,test_idx.shape,valid_idx.shape,plot_idx.shape)
 
     train_sampler = SubsetRandomSampler(train_idx)
     test_sampler = SubsetRandomSampler(test_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
-    plot_sampler = SubsetRandomSampler(plot_idx)
+    plot_sampler = SequentialSampler(plot_idx) # note the break from the random ordering here!
 
     return train_sampler, test_sampler, valid_sampler, plot_sampler
