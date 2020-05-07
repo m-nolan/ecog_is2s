@@ -2,9 +2,9 @@ import torch.nn as nn
 from datetime import datetime
 
 # initialize model weights
-def init_weights(m):
+def init_weights(m,w_range=(-0.08,0.08)):
     for name, param in m.named_parameters():
-        nn.init.uniform_(param.data, -0.08, 0.08)
+        nn.init.uniform_(param.data, w_range[0], w_range[1])
 
 # return an total count of model parameters.
 def count_parameters(m):

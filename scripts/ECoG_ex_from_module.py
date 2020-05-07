@@ -136,20 +136,23 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.arange(0,201,10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+n_plot_seed = 3
+plot_seed_idx = np.arange(n_plot_seed)
 
 # build the model, initialize
-num_layers = args.num_layers
-INPUT_SEQ_LEN = enc_len
-OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
+INPUT_SEQ_LEN = enc_len # number of samples to feed to encoder
+OUTPUT_SEQ_LEN = dec_len # number of samples to predict with decoder
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
-N_LAYER = 2
+N_LAYER = args.num_layers
 N_ENC_LAYERS = N_LAYER
 N_DEC_LAYERS = N_LAYER
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
+LEARN_RATE = 0.01 # default ADAM: 0.001
+WEIGHT_RANGE = (-0.2,0.2) # ignore for now; not sure how to worm this through
+
 
 enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, INPUT_SEQ_LEN, ENC_DROPOUT)
 dec = Decoder.Decoder_GRU(OUTPUT_DIM, HID_DIM, N_DEC_LAYERS, OUTPUT_SEQ_LEN, DEC_DROPOUT)
@@ -159,7 +162,7 @@ model.apply(Util.init_weights)
 
 print(f'The model has {Util.count_parameters(model):,} trainable parameters')
 
-optimizer = optim.Adam(model.parameters())
+optimizer = optim.Adam(model.parameters(),lr=LEARN_RATE)
 criterion = nn.MSELoss()
 
 # get to training!
@@ -168,7 +171,8 @@ test_frac = 0.2
 valid_frac = 0.0
 BATCH_SIZE = args.batch_size
 N_EPOCHS = args.num_epochs
-CLIP = 1
+CLIP = 1e3 # this the maximum norm of the gradient. It may get large, so let it be!
+TFR = 0.0 # no teacher forcing! Anything it's learning is all on its own
 RAND_SAMP = False
 
 best_test_loss = float('inf')
@@ -180,10 +184,11 @@ test_batch_loss = []
 
 # create training session directory
 time_str = Util.time_str() # I may do well to pack this into util
-session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_{}'.format(enc_len,dec_len,N_ENC_LAYERS,time_str))
+session_save_path = os.path.join(model_save_dir_path,'enc{}_dec{}_nl{}_nep{}_{}'.format(enc_len,dec_len,N_ENC_LAYERS,N_EPOCHS,time_str))
 sequence_plot_path = os.path.join(session_save_path,'example_sequence_figs')
 os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 os.makedirs(sequence_plot_path)
+print('saving session data to:\t{}'.format(session_save_path))
 # save a histogram of the data distribution; allowing you to check
 f,ax = plt.subplots(1,1,figsize=(6,4))
 ax.hist(dataset.data.reshape(-1),100,density=True)
@@ -202,29 +207,47 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
     train_loader, test_loader, _, plot_loader = EcogDataloader.genLoaders(dataset, sample_idx, train_frac, test_frac, valid_frac, BATCH_SIZE, rand_samp=RAND_SAMP, plot_seed=plot_seed_idx)
 
     print('Training Network:')
-    train_loss[e_idx], trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP)
+    _, trbl_ = Training.train(model, train_loader, optimizer, criterion, CLIP, TFR)
     train_batch_loss.append(trbl_)
+    train_loss[e_idx] = np.mean(trbl_) # this is the plotted training loss
     print('Testing Network:')
-    test_loss[e_idx], tebl_, _ = Training.evaluate(model, test_loader, criterion)
-    test_batch_loss.append(tebl_)
+    _, tebl_, _ = Training.evaluate(model, test_loader, criterion)
+    # test_batch_loss.append(tebl_)
+    test_loss[e_idx] = np.mean(tebl_) # this is the plotted test loss
     print('Running Figure Sequence:')
     plot_loss, plbl_, plot_data_list = Training.evaluate(model, plot_loader, criterion, plot_flag=True)
     if not (epoch % 10):
+        print('Saving estimate plots:')
         # save the data for the plotting window in dict form
-        torch.save(model.state_dict(),os.path.join(sequence_plot_path,'model_epoch{}.pt'.format(epoch)))
+        epoch_plot_path = os.path.join(sequence_plot_path,'epoch{}'.format(epoch))
+        os.makedirs(epoch_plot_path)
+        torch.save(model.state_dict(),os.path.join(epoch_plot_path,'model_epoch{}.pt'.format(epoch)))
+        c_list = ['b','r']
         for k in range(len(plot_data_list)):
+            c_output = c_list[k//n_plot_seed] # blue for training windows, red for testing windows
             plot_data_dict = {
                 'src': plot_data_list[k][0],
                 'trg': plot_data_list[k][1],
                 'out': plot_data_list[k][2],
+                'enc': plot_data_list[k][3],
+                'dec': plot_data_list[k][4],
                 'srate': srate_down,
                 # 'state_dict': model.state_dict(), # putting this in every file is redundant
             }
-            torch.save(plot_data_dict,os.path.join(sequence_plot_path,'data_tuple_epoch{}_{}.pt'.format(epoch,k)))
+            torch.save(plot_data_dict,os.path.join(epoch_plot_path,'data_tuple_epoch{}_window{}.pt'.format(epoch,k)))
             # pass data to plotting function for this window
-            f_eval,_ = Training.eval_plot(plot_data_dict)
-            f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}_{}.png'.format(epoch,k)))
-            plt.close(f_eval)
+            # for plots:
+            # blue: train
+            # red: test
+            # black: real
+            # green: encoder
+            # magenta: decoder
+            f_out, f_enc, f_dec = Training.eval_plot(plot_data_dict,c_output=c_output)
+            # save plots in current epoch subdir
+            f_out.savefig(os.path.join(epoch_plot_path,'output_plot_epoch{}_window{}.png'.format(epoch,k)))
+            f_enc.savefig(os.path.join(epoch_plot_path,'encoder_plot_epoch{}_window{}.png'.format(epoch,k)))
+            f_dec.savefig(os.path.join(epoch_plot_path,'decoder_plot_epoch{}_window{}.png'.format(epoch,k)))
+            [plt.close(f) for f in [f_out,f_enc,f_dec]]
 
     end_time = time.time()
 
