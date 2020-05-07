@@ -36,6 +36,7 @@ parser.add_argument('--encoder-depth', metavar='el', type=int, default=10, help=
 parser.add_argument('--decoder-depth', metavar='dl', type=int, default=1, help='Sequence depth of the decoder network')
 parser.add_argument('--batch-size', metavar='b', type=int, default=1, help='Data batch size')
 parser.add_argument('--num-epochs', metavar='n', type=int, default=1, help='Number of optimization epochs')
+parser.add_argument('--num-layers', metavar='nl', type=int, default=1, help='Number of network layers')
 
 args = parser.parse_args() # this bad boy has all the values packed into it. Nice!
 print(args.encoder_depth,args.decoder_depth)
@@ -135,21 +136,22 @@ dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
-plot_seed_idx = np.arange(10) # idx_all[20*60*srate_down] # this feeds the plotting dataloader, which should be producing the same plot on each run
+n_plot_seed = 3
+plot_seed_idx = np.arange(n_plot_seed)
 
 # build the model, initialize
-INPUT_SEQ_LEN = enc_len
-OUTPUT_SEQ_LEN = dec_len # predict one output state from 10 inputs prior
+INPUT_SEQ_LEN = enc_len # number of samples to feed to encoder
+OUTPUT_SEQ_LEN = dec_len # number of samples to predict with decoder
 INPUT_DIM = num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
-N_LAYER = 1
+N_LAYER = args.num_layers
 N_ENC_LAYERS = N_LAYER
 N_DEC_LAYERS = N_LAYER
 ENC_DROPOUT = np.float32(0.5)
 DEC_DROPOUT = np.float32(0.5)
 LEARN_RATE = 0.01 # default ADAM: 0.001
-WEIGHT_RANGE = (-0.2,0.2)
+WEIGHT_RANGE = (-0.2,0.2) # ignore for now; not sure how to worm this through
 
 
 enc = Encoder.Encoder_GRU(INPUT_DIM, HID_DIM, N_ENC_LAYERS, INPUT_SEQ_LEN, ENC_DROPOUT)
@@ -220,7 +222,9 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
         epoch_plot_path = os.path.join(sequence_plot_path,'epoch{}'.format(epoch))
         os.makedirs(epoch_plot_path)
         torch.save(model.state_dict(),os.path.join(epoch_plot_path,'model_epoch{}.pt'.format(epoch)))
+        c_list = ['b','r']
         for k in range(len(plot_data_list)):
+            c_output = c_list[k//n_plot_seed] # blue for training windows, red for testing windows
             plot_data_dict = {
                 'src': plot_data_list[k][0],
                 'trg': plot_data_list[k][1],
@@ -232,7 +236,13 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             }
             torch.save(plot_data_dict,os.path.join(epoch_plot_path,'data_tuple_epoch{}_window{}.pt'.format(epoch,k)))
             # pass data to plotting function for this window
-            f_out, f_enc, f_dec = Training.eval_plot(plot_data_dict)
+            # for plots:
+            # blue: train
+            # red: test
+            # black: real
+            # green: encoder
+            # magenta: decoder
+            f_out, f_enc, f_dec = Training.eval_plot(plot_data_dict,c_output=c_output)
             # save plots in current epoch subdir
             f_out.savefig(os.path.join(epoch_plot_path,'output_plot_epoch{}_window{}.png'.format(epoch,k)))
             f_enc.savefig(os.path.join(epoch_plot_path,'encoder_plot_epoch{}_window{}.png'.format(epoch,k)))

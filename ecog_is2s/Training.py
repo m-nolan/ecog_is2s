@@ -121,14 +121,15 @@ def evaluate(model, iterator, criterion, plot_flag=False):
     # there may be a bug in the loss normalization here
     return epoch_loss, np.array(batch_loss), plot_output
 
-def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
+def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0,c_output='b',c_target='k',c_encoder='g',c_decoder='m'):
     # compute PCA dims from catted src/trg data
     # make sure to push this frame back to the cpu!
-    src = plot_dict['src'].cpu()#.squeeze(dim=0)
-    trg = plot_dict['trg'].cpu()#.squeeze(dim=0)
-    out = plot_dict['out'].cpu()#.squeeze(dim=0)
-    enc = plot_dict['enc'].cpu()#.squeeze(dim=0)
-    dec = plot_dict['dec'].cpu()#.squeeze(dim=0)
+    src = plot_dict['src'].cpu().numpy()#.squeeze(dim=0)
+    trg = plot_dict['trg'].cpu().numpy()#.squeeze(dim=0)
+    out = plot_dict['out'].cpu().numpy()#.squeeze(dim=0)
+    enc = plot_dict['enc'].cpu().numpy()#.squeeze(dim=0)
+    dec = plot_dict['dec'].cpu().numpy()#.squeeze(dim=0)
+    srate = plot_dict['srate']
     # print(src.shape,trg.shape,out.shape)
     # n_win = src.shape(0) # each plotted window will be a separate batch here
     n_t_in = src.shape[0]
@@ -137,18 +138,36 @@ def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
     n_c = 8
     n_r = 8
 
+    # get scale bar references
+    lp10 = lambda x: 10**np.floor(np.log10(x))
+    dom = lambda a: np.max(a.reshape(-1))-np.min(a.reshape(-1))
+    t_in = n_t_in/srate
+    t_out = n_t_out/srate
+    bar_t_in = lp10(t_in)
+    bar_t_out = lp10(t_out)
+    a_src = dom(src)
+    a_trg = dom(trg)
+    a_out = dom(out)
+    a_enc = dom(enc)
+    a_dec = dom(dec)
+    bar_a_src = lp10(a_src)
+    bar_a_trg = lp10(a_trg)
+    bar_a_out = lp10(a_out)
+    bar_a_enc = lp10(a_enc)
+    bar_a_dec = lp10(a_dec)
+
     plot_t_in = np.arange(n_t_in)/plot_dict['srate']
     plot_t_out = np.arange(n_t_out)/plot_dict['srate']
     plt.rcParams.update({'font.size': 8}) # this may be a problem w/in a module?
 
     # plot target v. output
-    f_target_v_out,ax = plt.subplots(n_r,n_c,figsize=figsize)
+    f_target_v_out,ax = plt.subplots(n_r,n_c,figsize=figsize,sharex=True,sharey=True)
     for n in range(n_r*n_c):
         r_idx = n // n_c
         c_idx = n % n_c
         if n < n_ch:
-            ax[r_idx,c_idx].plot(plot_t_out,trg[:,n])
-            ax[r_idx,c_idx].plot(plot_t_out,out[:,n])
+            ax[r_idx,c_idx].plot(plot_t_out,trg[:,n],color=c_target)
+            ax[r_idx,c_idx].plot(plot_t_out,out[:,n],color=c_output)
             ax[r_idx,c_idx].get_xaxis().set_ticks([])
             ax[r_idx,c_idx].get_yaxis().set_ticks([])
             # ax[r_idx,c_idx].legend('{}'.format(n))
@@ -156,17 +175,29 @@ def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
         plt.box(on=False)
         plt.xticks([])
         plt.yticks([])
-    ax[r_idx,0].set_xlabel('time (s)')
+    # add time, amplitude references
+    x_min, x_max, y_min, y_max = ax[r_idx,0].axis()
+    x_w_in = bar_t_out/(x_max-x_min)
+    bar_a_trg_out_max = np.max((bar_a_trg,bar_a_out))
+    y_w = bar_a_trg_out_max/(y_max-y_min)
+    # amplitude scale bar
+    ax[r_idx,0].axvline(x_min,ymin=0,ymax=y_w,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min,y_min+bar_a_trg_out_max/2,"{} ".format(bar_a_trg_out_max),
+                     horizontalalignment='right',verticalalignment='center')
+    # time scale bar
+    ax[r_idx,0].axhline(y_min,xmin=0,xmax=x_w_in,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min+bar_t_out/2,y_min,"{} s".format(bar_t_out),
+                     horizontalalignment='center',verticalalignment='top')
 
     # plot encoder activity
-    f_encoder_state,ax = plt.subplots(n_r,n_c,figsize=figsize)
+    f_encoder_state,ax = plt.subplots(n_r,n_c,figsize=figsize,sharex=True,sharey=True)
     n_p = enc.shape[-1] // trg.shape[-1]
     for n in range(n_r*n_c):
         r_idx = n // n_c
         c_idx = n % n_c
         p_idx = n*n_p + np.arange(n_p)
         if n < n_ch:
-            ax[r_idx,c_idx].plot(plot_t_in,enc[:,p_idx])
+            ax[r_idx,c_idx].plot(plot_t_in,enc[:,p_idx],color=c_encoder,alpha=1/np.sqrt(n_p)) # alpha's a weird heuristic here
             ax[r_idx,c_idx].get_xaxis().set_ticks([])
             ax[r_idx,c_idx].get_yaxis().set_ticks([])
             # ax[r_idx,c_idx].legend('{}'.format(n))
@@ -174,17 +205,28 @@ def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
         plt.box(on=False)
         plt.xticks([])
         plt.yticks([])
-    ax[r_idx,0].set_xlabel('time (s)')
+    # add time, amplitude references
+    x_min, x_max, y_min, y_max = ax[r_idx,0].axis()
+    x_w_in = bar_t_in/(x_max-x_min)
+    y_w = bar_a_enc/(y_max-y_min)
+    # amplitude scale bar
+    ax[r_idx,0].axvline(x_min,ymin=0,ymax=y_w,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min,y_min+bar_a_enc/2,"{} ".format(bar_a_enc),
+                     horizontalalignment='right',verticalalignment='center')
+    # time scale bar
+    ax[r_idx,0].axhline(y_min,xmin=0,xmax=x_w_in,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min+bar_t_in/2,y_min,"{} s".format(bar_t_in),
+                     horizontalalignment='center',verticalalignment='top')
 
     # plot decoder activity
-    f_decoder_state,ax = plt.subplots(n_r,n_c,figsize=figsize)
+    f_decoder_state,ax = plt.subplots(n_r,n_c,figsize=figsize,sharex=True,sharey=True)
     n_p = dec.shape[-1] // trg.shape[-1]
     for n in range(n_r*n_c):
         r_idx = n // n_c
         c_idx = n % n_c
         p_idx = n*n_p + np.arange(n_p)
         if n < n_ch:
-            ax[r_idx,c_idx].plot(plot_t_out,dec[:,p_idx])
+            ax[r_idx,c_idx].plot(plot_t_out,dec[:,p_idx],color=c_decoder,alpha=1/np.sqrt(n_p))
             ax[r_idx,c_idx].get_xaxis().set_ticks([])
             ax[r_idx,c_idx].get_yaxis().set_ticks([])
             # ax[r_idx,c_idx].legend('{}'.format(n))
@@ -192,7 +234,18 @@ def eval_plot(plot_dict,figsize=(10.5,8),n_pca=0):
         plt.box(on=False)
         plt.xticks([])
         plt.yticks([])
-    ax[r_idx,0].set_xlabel('time (s)')
+    # add time, amplitude references
+    x_min, x_max, y_min, y_max = ax[r_idx,0].axis()
+    x_w_in = bar_t_out/(x_max-x_min)
+    y_w = a_dec/(y_max-y_min)
+    # amplitude scale bar
+    ax[r_idx,0].axvline(x_min,ymin=0,ymax=y_w,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min,y_min+a_dec/2,"{}".format(bar_a_dec),
+                     horizontalalignment='right',verticalalignment='center')
+    # time scale bar
+    ax[r_idx,0].axhline(y_min,xmin=0,xmax=x_w_in,linewidth=3,color='k')
+    ax[r_idx,0].text(x_min+bar_t_out/2,y_min,"{} s".format(bar_t_out),
+                     horizontalalignment='center',verticalalignment='top')
 
     return f_target_v_out, f_encoder_state, f_decoder_state
 

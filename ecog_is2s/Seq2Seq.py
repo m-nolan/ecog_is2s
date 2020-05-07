@@ -43,10 +43,11 @@ class Seq2Seq_GRU(nn.Module):
         for t in range(trg_len): # ignore that first data point
             # pred: the output of the linear layer, trained to track the ECoG data.
             # output: the output of the decoder and input to the following fc linear layer.
-            # hidden: the hidden state of the decoder.
+            # hidden: the hidden state of the decoder at the last time point: [n_layer*n_dir, n_batch, n_ch]
+            #       ^ if you want to see each layer's activity at the last time point, use this.
             pred, output, hidden = self.decoder(input_,hidden)
             outputs[:,t,:] = pred.squeeze()
-            dec_state[:,t,:] = hidden.squeeze()
+            dec_state[:,t,:] = output.squeeze()
             teacher_force = random.random() < teacher_forcing_ratio
             input_ = trg[:,t,:].unsqueeze(1) if teacher_force else pred # the next input is the current predicted value.
 
