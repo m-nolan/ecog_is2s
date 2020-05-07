@@ -137,7 +137,8 @@ idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
 sample_idx = idx_all[:-seq_len:idx_step]
 n_plot_seed = 3
-plot_seed_idx = np.arange(n_plot_seed)
+n_plot_step = 5
+plot_seed_idx = np.arange(0,n_plot_seed*n_plot_step*seq_len+1,seq_len*n_plot_step)
 
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len # number of samples to feed to encoder
