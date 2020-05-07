@@ -224,6 +224,7 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             # pass data to plotting function for this window
             f_eval,_ = Training.eval_plot(plot_data_dict)
             f_eval.savefig(os.path.join(sequence_plot_path,'eval_plot_epoch{}_{}.png'.format(epoch,k)))
+            plt.close(f_eval)
 
     end_time = time.time()
 
