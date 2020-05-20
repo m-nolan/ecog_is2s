@@ -1,5 +1,6 @@
 import torch.nn as nn
 from datetime import datetime
+import numpy as np
 
 # initialize model weights
 def init_weights(m,w_range=(-0.08,0.08)):
@@ -19,3 +20,8 @@ def epoch_time(start_time, end_time):
 
 def time_str():
     return datetime.strftime(datetime.now(),'%Y%m%d%H%M%S%f')
+
+def center_diff(x):
+    dx = np.zeros(x.shape)
+    dx[:,1:-1] = (x[:,2:] - x[:,:-2])/2
+    return np.float32(dx)

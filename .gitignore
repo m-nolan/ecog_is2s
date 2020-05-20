@@ -8,3 +8,5 @@ dist
 .data
 *.egg-info
 
+.DS_Store
+
