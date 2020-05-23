@@ -9,11 +9,11 @@ class Encoder_GRU(nn.Module):
         self.hid_dim = hid_dim
         self.n_layers = n_layers
         self.seq_len = seq_len
-        
+
         # gated recurrent layer, dropout layer
         self.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
         # note: batch_first only permutes dimension order in input and output tensors. It does not affect hidden state.
-        self.dropout = nn.Dropout(dropout)
+        # self.dropout = nn.Dropout(dropout) # I was advised to not regularized connections from encoder to decoder
 
     def forward(self, input_data):
         # input_data: [batch_size x seq_len x input_dim]
@@ -21,7 +21,7 @@ class Encoder_GRU(nn.Module):
         batch_size = input_data.size(0)
 #         hidden = torch.randn(self.n_layers, batch_size, self.hid_dim) # initialize hidden layer value
         output, hidden = self.rnn(input_data) # hidden initialized as zero tensor
-            
+
         # output = [batch_size x seq_len x hid_dim]
         # hidden = [n layers * n directions, batch size, hid dim]
 
@@ -33,7 +33,7 @@ class Encoder_LSTM(nn.Module):
         self.input_dim = input_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
-        
+
         # gated recurrent layer, dropout layer
         self.rnn = nn.LSTM(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
 

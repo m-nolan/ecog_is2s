@@ -38,7 +38,8 @@ class Seq2Seq_GRU(nn.Module):
 
         enc_state, hidden = self.encoder(src)
 
-        input_ = src[:,-1,:trg_dim].unsqueeze(1) # start the decoder with the actual output, remove dx if present
+        # input_ = src[:,-1,:trg_dim].unsqueeze(1) # start the decoder with the actual output, remove dx if present
+        input_ = torch.zeros((batch_size,1,trg_dim))
 
         for t in range(trg_len): # ignore that first data point
             # pred: the output of the linear layer, trained to track the ECoG data.

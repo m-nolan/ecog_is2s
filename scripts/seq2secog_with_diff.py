@@ -100,6 +100,7 @@ seq_len = enc_len+dec_len # use ten time points to predict the next time point
 
 total_len_T = 1*60 # I just don't have that much time!
 total_len_n = total_len_T*srate_in
+total_len_n_down = total_len_T*srate_down
 data_idx = data_in.shape[1]//2 + np.arange(total_len_n)
 print('Downsampling data from {0} to {1}'.format(srate_in,srate_down))
 data_in = np.float32(sp.signal.decimate(data_in[:,data_idx],srate_in//srate_down,axis=-1))
@@ -116,23 +117,27 @@ num_ch_down = len(ch_list)
 print('Num. ch. used:\t{}'.format(num_ch_down))
 print('Ch. kept:\t{}'.format(ch_list))
 
+#augment data with derivative estimates
+data_aug = np.zeros((2*num_ch_down,total_len_n_down),dtype=np.float32)
+data_aug[:num_ch_down,:] = data_in[ch_idx,:]
+data_aug[num_ch_down:,:] = Util.center_diff(data_in[ch_idx,:])/srate_down
+
 #create data tensor
 data_rail = np.max(np.abs(data_in.reshape(-1)))
 # normalization = 'zscore'
 normalization = 'tanh'
 if normalization is 'max':
-    data_tensor = torch.from_numpy(data_in[ch_idx,:].view().transpose()/data_rail)
+    data_tensor = torch.from_numpy(data_aug[:,1:-1].view().T/data_rail)
 elif normalization is 'zscore':
     # for nominally gaussian data distributions, this will get ~99% of data points in (-1, 1)
-    data_tensor = torch.from_numpy(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/5)
+    data_tensor = torch.from_numpy(sp.stats.zscore(data_aug[:,1:-1].view().T)/5)
 elif normalization is 'tanh':
-    data_tensor = torch.from_numpy(np.tanh(sp.stats.zscore(data_in[ch_idx,:].view().transpose())/3))
+    data_tensor = torch.from_numpy(np.tanh(sp.stats.zscore(data_aug[:,1:-1].view().T)/3))
 
 if device == 'cuda:0':
     data_tensor.cuda()
 print(data_tensor.size)
-dataset = EcogDataloader.EcogDataset(data_tensor[:,0].unsqueeze(-1),device,seq_len) ## make my own Dataset class
-num_ch_down = 1 # just for testing.
+dataset = EcogDataloader.EcogDataset(data_tensor,device,seq_len) ## make my own Dataset class
 
 idx_all = np.arange(dataset.data.shape[0])
 idx_step = int(np.round(0.1*srate_down))
@@ -144,7 +149,7 @@ plot_seed_idx = np.arange(0,n_plot_seed*n_plot_step,n_plot_step)
 # build the model, initialize
 INPUT_SEQ_LEN = enc_len # number of samples to feed to encoder
 OUTPUT_SEQ_LEN = dec_len # number of samples to predict with decoder
-INPUT_DIM = num_ch_down
+INPUT_DIM = 2*num_ch_down
 OUTPUT_DIM = num_ch_down
 HID_DIM = 4*num_ch_down
 N_LAYER = args.num_layers
@@ -195,8 +200,9 @@ os.makedirs(session_save_path) # no need to check; there's no way it exists yet.
 os.makedirs(sequence_plot_path)
 print('saving session data to:\t{}'.format(session_save_path))
 # save a histogram of the data distribution; allowing you to check
-f,ax = plt.subplots(1,1,figsize=(6,4))
-ax.hist(dataset.data.reshape(-1),100,density=True)
+f,ax = plt.subplots(2,1,figsize=(8,4))
+ax[0].hist(dataset.data[:,:num_ch_down].reshape(-1),100,density=True,label='ECoG')
+ax[1].hist(dataset.data[:,num_ch_down:].reshape(-1),100,density=True,label='dECoG')
 f.savefig(os.path.join(session_save_path,'norm_data_hist.png'))
 
 # make figure (and a place to save it)
@@ -232,10 +238,11 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             c_output = c_list[k//n_plot_seed] # blue for training windows, red for testing windows
             plot_data_dict = {
                 'src': plot_data_list[k][0],
-                'trg': plot_data_list[k][1],
-                'out': plot_data_list[k][2],
-                'enc': plot_data_list[k][3],
-                'dec': plot_data_list[k][4],
+                'src_dx': plot_data_list[k][1],
+                'trg': plot_data_list[k][2],
+                'out': plot_data_list[k][3],
+                'enc': plot_data_list[k][4],
+                'dec': plot_data_list[k][5],
                 'srate': srate_down,
                 # 'state_dict': model.state_dict(), # putting this in every file is redundant
             }
@@ -247,11 +254,12 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
             # black: real
             # green: encoder
             # magenta: decoder
-            f_out, f_enc, f_dec = Training.eval_plot(plot_data_dict,c_output=c_output)
+            f_out, f_enc, f_dec, f_src = Training.eval_plot(plot_data_dict,c_output=c_output)
             # save plots in current epoch subdir
             f_out.savefig(os.path.join(epoch_plot_path,'output_plot_epoch{}_window{}.png'.format(epoch,k)))
             f_enc.savefig(os.path.join(epoch_plot_path,'encoder_plot_epoch{}_window{}.png'.format(epoch,k)))
             f_dec.savefig(os.path.join(epoch_plot_path,'decoder_plot_epoch{}_window{}.png'.format(epoch,k)))
+            f_src.savefig(os.path.join(epoch_plot_path,'source_plot_epoch{}_window{}.png'.format(epoch,k)))
             [plt.close(f) for f in [f_out,f_enc,f_dec]]
 
     end_time = time.time()
@@ -285,6 +293,8 @@ for e_idx, epoch in enumerate(range(N_EPOCHS)):
         ax_loss.plot(e_idx,train_loss[e_idx],'b.')
         ax_loss.plot(e_idx,test_loss[e_idx],'r.')
     ax_loss.set_ylim(bottom=0,top=1.05*np.concatenate((train_loss,test_loss)).max())
+    ax_loss.set_xlabel('epoch')
+    ax_loss.set_ylabel('loss: {}'.format(loss_obj))
     # print the loss curve figure; continuously overwrite (like a fun stock ticker)
     f_loss.savefig(os.path.join(session_save_path,'training_progress.png'))
     torch.save({'train_loss':train_loss,'test_loss':test_loss,},os.path.join(session_save_path,'training_progress.pt'))

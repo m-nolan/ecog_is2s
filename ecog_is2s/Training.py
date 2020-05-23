@@ -308,5 +308,5 @@ class ECOGLoss(_Loss):
             loss_unreduced = l1_loss(input,target,reduction='none')
         if self.objective in ['L2','l2','MSE']:
             loss_unreduced = mse_loss(input,target,reduction='none')
-        loss = loss_unreduced.sum(axis=self.sum_axis).mean()
+        loss = loss_unreduced.sum() # this may well still be a mean.
         return loss
