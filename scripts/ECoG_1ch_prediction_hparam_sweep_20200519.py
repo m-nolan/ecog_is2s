@@ -2,7 +2,7 @@
 # coding: utf-8
 
 # # ECoG Forecasting with Sequence-to-Sequence (seq2seq) RNN models.
-# 
+#
 # ## Starting small: 1 channel.
 
 # In[17]:
@@ -72,7 +72,7 @@ import matplotlib.pyplot as plt
 T_MINUTES = 2
 ENCODER_DEPTH = 250
 DECODER_DEPTH = 50
-n_units = [1028, 512, 256, 128]
+n_units = [2048, 1028, 512, 256]
 BATCH_SIZE = 100
 NUM_EPOCHS = 500
 N_EPOCHS = NUM_EPOCHS
@@ -255,7 +255,7 @@ def print_progress_bar(count, total, status=''):
 
 # model training + evaluation function, run this in each parameter choice loop
 def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=False):
-    
+
     ENCODER_DEPTH = 250
     DECODER_DEPTH = 50
     BATCH_SIZE = 100
@@ -277,7 +277,7 @@ def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=
     enc_len = ENCODER_DEPTH
     dec_len = DECODER_DEPTH
     seq_len = ENCODER_DEPTH+DECODER_DEPTH # use ten time points to predict the next time point
-    
+
     # create model from given spec
     enc = Encoder.Encoder_GRU(INPUT_DIM, n_units, n_layers, INPUT_SEQ_LEN, dropout)
     dec = Decoder.Decoder_GRU(OUTPUT_DIM, n_units, n_layers, OUTPUT_SEQ_LEN, dropout)
@@ -289,7 +289,7 @@ def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=
 
     criterion = Training.ECOGLoss(objective=LOSS_OBJ)
     optimizer = optim.Adam(model.parameters(),lr=l_rate,weight_decay=weight_reg)
-    
+
     best_test_loss = float('inf')
 
     train_loss = np.zeros(N_EPOCHS)
@@ -419,14 +419,8 @@ with open(result_file,'w') as rf:
     rf.write('id,n_layer,n_unit,l_rate,d_rate,train_loss_end,test_loss_end')
     rf.write('\n')
 for (n_l,n_u,l_r,d_r) in product(n_layers,n_units,l_rate,dropout):
+    print('layers:\t{}\tunits:\t{}\tl_rate:\t{}\td_rate:\t{}\n')
     train_loss, test_loss, param_session_name = train_eval_seq2seq(dataset,n_l,n_u,l_r,d_r,out_dir)
     with open(result_file,'a') as rf:
         rf.write('{},{},{},{},{},{},{}'.format(param_session_name,n_l,n_u,l_r,d_r,train_loss[-1],test_loss[-1]))
         rf.write('\n')
-
-
-# In[ ]:
-
-
-
-
