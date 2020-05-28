@@ -2,10 +2,10 @@
 # coding: utf-8
 
 # # ECoG Forecasting with Sequence-to-Sequence (seq2seq) RNN models.
-#
+# 
 # ## Starting small: 1 channel.
 
-# In[17]:
+# In[ ]:
 
 
 #!/usr/bin/env python
@@ -45,7 +45,7 @@ import matplotlib.pyplot as plt
 
 # The code in the next cell is used to parse command line arguments. These arguments assign values to the network and training parameters. This functionality has been replaced with more hard-coded constants in the current notebook. From an organizational standpoint, that's not the worst thing - it's given me a good opportunity to collect all of the constants together into one single code block @ the top of the notebook. They were pretty scattershot before that.
 
-# In[2]:
+# In[ ]:
 
 
 # # grab input arguments
@@ -65,24 +65,24 @@ import matplotlib.pyplot as plt
 # ### TO-DO:
 # Clean this mess up! There are lots of copied values and variable rereferences. They're unncessary and confusing.
 
-# In[3]:
+# In[ ]:
 
 
 # define constants
 T_MINUTES = 2
 ENCODER_DEPTH = 250
 DECODER_DEPTH = 50
-n_units = [2048, 1028, 512, 256]
+n_units = [8196,4098,2048]
 BATCH_SIZE = 100
 NUM_EPOCHS = 500
 N_EPOCHS = NUM_EPOCHS
-n_layers = [1, 2, 3,]
+n_layers = [1,]
 RNG_SEED = 5050
 INPUT_SEQ_LEN = ENCODER_DEPTH
 OUTPUT_SEQ_LEN = DECODER_DEPTH
 N_CH_USE = 1
-dropout = [0.0, 0.1, 0.2, 0.3,]
-l_rate = [0.0001, 0.0005, 0.001]
+dropout = [0.1]
+l_rate = [1e-5, 2e-5, 5e-5, 1e-4]
 LOSS_OBJ = 'MSE' #L1, L2, see training.py:ECOGLoss()
 WEIGHT_RANGE = (-0.2,0.2) # ignore for now; not sure how to worm this through
 train_frac = 0.8
@@ -99,7 +99,7 @@ dec_len = DECODER_DEPTH
 seq_len = ENCODER_DEPTH+DECODER_DEPTH # use ten time points to predict the next time point
 
 
-# In[4]:
+# In[ ]:
 
 
 # seed RNG for pytorch/np
@@ -110,7 +110,7 @@ torch.cuda.manual_seed(RNG_SEED)
 torch.backends.cudnn.deterministic = True # enforces deterministic algorithm use -> reproducibility. Remove for production code. You don't do production code. Don't remove.
 
 
-# In[5]:
+# In[ ]:
 
 
 # set device - CUDA if you've got it
@@ -118,7 +118,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('mounting to device: {}'.format(device))
 
 
-# In[6]:
+# In[ ]:
 
 
 # load data
@@ -147,7 +147,7 @@ srate_in= data_param['srate']
 num_ch = data_param['num_ch']
 
 
-# In[7]:
+# In[ ]:
 
 
 # mask data array, remove obvious outliers
@@ -201,7 +201,7 @@ num_ch_down = dataset.n_ch
 print('\n')
 
 
-# In[8]:
+# In[ ]:
 
 
 # generate sampling index sets
@@ -214,7 +214,7 @@ n_plot_step = 4*seq_len
 plot_seed_idx = np.arange(0,n_plot_seed*n_plot_step,n_plot_step)
 
 
-# In[9]:
+# In[ ]:
 
 
 # # define the network!
@@ -235,7 +235,7 @@ plot_seed_idx = np.arange(0,n_plot_seed*n_plot_step,n_plot_step)
 # def create_seq2seq_model(input_dim,hidden_dim,output_dim,in_seq_len,out_seq_len,dropout=ENC_DROPOUT)
 
 
-# In[10]:
+# In[ ]:
 
 
 # simple progressbar, not tied to the iterator
@@ -250,12 +250,12 @@ def print_progress_bar(count, total, status=''):
     sys.stdout.flush()
 
 
-# In[31]:
+# In[ ]:
 
 
 # model training + evaluation function, run this in each parameter choice loop
 def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=False):
-
+    
     ENCODER_DEPTH = 250
     DECODER_DEPTH = 50
     BATCH_SIZE = 100
@@ -277,7 +277,7 @@ def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=
     enc_len = ENCODER_DEPTH
     dec_len = DECODER_DEPTH
     seq_len = ENCODER_DEPTH+DECODER_DEPTH # use ten time points to predict the next time point
-
+    
     # create model from given spec
     enc = Encoder.Encoder_GRU(INPUT_DIM, n_units, n_layers, INPUT_SEQ_LEN, dropout)
     dec = Decoder.Decoder_GRU(OUTPUT_DIM, n_units, n_layers, OUTPUT_SEQ_LEN, dropout)
@@ -289,7 +289,7 @@ def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=
 
     criterion = Training.ECOGLoss(objective=LOSS_OBJ)
     optimizer = optim.Adam(model.parameters(),lr=l_rate,weight_decay=weight_reg)
-
+    
     best_test_loss = float('inf')
 
     train_loss = np.zeros(N_EPOCHS)
@@ -406,7 +406,7 @@ def train_eval_seq2seq(dataset,n_layers,n_units,l_rate,dropout,save_dir,dry_run=
     return (train_loss, test_loss, param_session_name)
 
 
-# In[36]:
+# In[ ]:
 
 
 # sweep over parameters!
@@ -419,9 +419,14 @@ with open(result_file,'w') as rf:
     rf.write('id,n_layer,n_unit,l_rate,d_rate,train_loss_end,test_loss_end')
     rf.write('\n')
 for (n_l,n_u,l_r,d_r) in product(n_layers,n_units,l_rate,dropout):
-    print('\n') # the buffer flushes after each progressbar update. this avoids overwrite.
-    print('layers:\t{}\tunits:\t{}\tl_rate:\t{}\td_rate:\t{}\n')
     train_loss, test_loss, param_session_name = train_eval_seq2seq(dataset,n_l,n_u,l_r,d_r,out_dir)
     with open(result_file,'a') as rf:
         rf.write('{},{},{},{},{},{},{}'.format(param_session_name,n_l,n_u,l_r,d_r,train_loss[-1],test_loss[-1]))
         rf.write('\n')
+
+
+# In[ ]:
+
+
+
+
