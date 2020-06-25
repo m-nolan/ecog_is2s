@@ -69,14 +69,14 @@ import matplotlib.pyplot as plt
 
 
 # define constants
-T_MINUTES = 2
+T_MINUTES = 5
 ENCODER_DEPTH = 250
 DECODER_DEPTH = 50
-n_units = [2048, 1028, 512, 256]
+n_units = [1028, 512, 256]
 BATCH_SIZE = 100
 NUM_EPOCHS = 500
 N_EPOCHS = NUM_EPOCHS
-n_layers = [1, 2, 3,]
+n_layers = [1]
 RNG_SEED = 5050
 INPUT_SEQ_LEN = ENCODER_DEPTH
 OUTPUT_SEQ_LEN = DECODER_DEPTH
@@ -419,7 +419,7 @@ with open(result_file,'w') as rf:
     rf.write('id,n_layer,n_unit,l_rate,d_rate,train_loss_end,test_loss_end')
     rf.write('\n')
 for (n_l,n_u,l_r,d_r) in product(n_layers,n_units,l_rate,dropout):
-    print('layers:\t{}\tunits:\t{}\tl_rate:\t{}\td_rate:\t{}\n')
+    print('layers:\t{}\tunits:\t{}\tl_rate:\t{}\td_rate:\t{}\n'.format(n_l,n_u,l_r,d_r))
     train_loss, test_loss, param_session_name = train_eval_seq2seq(dataset,n_l,n_u,l_r,d_r,out_dir)
     with open(result_file,'a') as rf:
         rf.write('{},{},{},{},{},{},{}'.format(param_session_name,n_l,n_u,l_r,d_r,train_loss[-1],test_loss[-1]))
