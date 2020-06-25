@@ -28,8 +28,8 @@ def train(model, iterator, optimizer, criterion, clip, teacher_forcing_ratio):
             print(i,len(iterator))
         src = batch[:,:enc_len,:]
         trg = batch[:,enc_len:enc_len+dec_len,:n_ch] # only train to
-        if dec_len == 1:
-            trg = trg.unsqueeze(1)
+#         if dec_len == 1:
+#             trg = trg.unsqueeze(1)
 
         optimizer.zero_grad()
         output, _, _ = model(src, trg, teacher_forcing_ratio=teacher_forcing_ratio)
@@ -88,8 +88,8 @@ def evaluate(model, iterator, criterion, plot_flag=False):
                 print(i,len(iterator))
             src = batch[:,:enc_len,:]
             trg = batch[:,enc_len:enc_len+dec_len,:n_ch]
-            if dec_len == 1:
-                trg = trg.unsqueeze(1)
+#             if dec_len == 1:
+#                 trg = trg.unsqueeze(1)
 
             output, enc_state, dec_state = model(src, trg, teacher_forcing_ratio=0.) #turn off teacher forcing
             if plot_flag:
