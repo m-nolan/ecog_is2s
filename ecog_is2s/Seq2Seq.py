@@ -98,10 +98,22 @@ class Seq2Seq_GRU(nn.Module):
 
         return epoch_loss, np.array(batch_loss)
 
-
+        # spot for future pytorch-lightning integration
         def training_step(self):
-            # spot for future pytorch-lightning integration
+            # tensorboard_logs = {'train_loss': loss}
+            # return {'loss': loss, 'log': tensorboard_logs}
             None
+
+        def configure_optimizers(self):
+            # return torch.optim.Adam(self.parameters(), lr=0.001)
+            None
+
+        def train_dataloader(self):
+            # dataset = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
+            # loader = DataLoader(dataset, batch_size=32, num_workers=4, shuffle=True)
+            # return loader
+            None
+        # ending future pytorch-lightning integration
 
 class Encoder_GRU(nn.Module):
     def __init__(self, input_dim, hid_dim, n_layers, seq_len, dropout):
