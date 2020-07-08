@@ -37,7 +37,7 @@ class EcogDataset(Dataset):
         return data_out
 
 # produce sequential dataloaders
-def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, rand_samp=False, plot_seed=0):
+def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, drop_last=False, rand_samp=False, plot_seed=0):
     data_size = dataset.data.shape[0]
     idx_all = np.arange(data_size)
 #     smpl_idx_all = idx_all[:-seq_len:seq_len]
@@ -49,19 +49,19 @@ def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_si
     train_loader = DataLoader(dataset,
                               batch_size=batch_size,
                               sampler=train_sampler,
-                              drop_last=True) # this can be avoided using some padding sequence classes, I think
+                              drop_last=drop_last) # this can be avoided using some padding sequence classes, I think
     test_loader = DataLoader(dataset,
                              batch_size=batch_size,
                              sampler=test_sampler,
-                             drop_last=True)
+                             drop_last=drop_last)
     valid_loader = DataLoader(dataset,
                               batch_size=batch_size,
                               sampler=valid_sampler,
-                              drop_last=True)
+                              drop_last=drop_last)
     plot_loader = DataLoader(dataset,
                              batch_size=1,
                              sampler=plot_sampler,
-                             drop_last=False)
+                             drop_last=drop_last)
     return train_loader, test_loader, valid_loader, plot_loader
 
 
