@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
+import numpy as np
 # import random
 
 class Seq2Seq_GRU(nn.Module):
-    def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, dropout=0.0):
+    def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device, dropout=0.0):
         super().__init__()
         self.input_dim = input_dim
         self.hid_dim = hid_dim
@@ -11,6 +12,7 @@ class Seq2Seq_GRU(nn.Module):
         self.enc_len = enc_len # do we need these?
         self.dec_len = dec_len # I don't think we need these
         self.dropout = dropout
+        self.device = device
 
         # create encoder
         # self.encoder.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
@@ -32,7 +34,7 @@ class Seq2Seq_GRU(nn.Module):
 
         # preallocate outputs
         out = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
-        dec_state = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
+        dec_state = torch.zeros(batch_size, trg_len, self.hid_dim).to(self.device)
 
         enc_state, hidden = self.encoder(src)
 
@@ -43,14 +45,14 @@ class Seq2Seq_GRU(nn.Module):
             # hidden: the hidden state of the decoder at the last time point: [n_layer*n_dir, n_batch, n_ch]
             #       ^ if you want to see each layer's activity at the last time point, use this.
             pred, output, hidden = self.decoder(input_,hidden)
-            outputs[:,t,:] = pred.squeeze(1)
+            out[:,t,:] = pred.squeeze(1)
             dec_state[:,t,:] = output.squeeze(1)
             teacher_force = torch.rand(1)[0] < teacher_forcing_ratio
             input_ = trg[:,t,:].unsqueeze(1) if teacher_force else pred
 
-        return outputs, enc_state, dec_state
+        return out, enc_state, dec_state
 
-    def training(self, loader, optimizer, criterion, clip = 1.0, teacher_forcing_ratio=0.0):
+    def train_iter(self, iterator, optimizer, criterion, clip = 1.0, teacher_forcing_ratio=0.0):
         self.train()
 
         epoch_loss = 0
@@ -58,18 +60,18 @@ class Seq2Seq_GRU(nn.Module):
 
         for idx, batch in enumerate(iterator):
             # ^change this when you update the dataloader to split src/trg
-            if np.mod(i+1,1000) == 0:
-                print(i,len(iterator))
+            if np.mod(idx+1,1000) == 0:
+                print(idx,len(iterator))
             src = batch[:,:self.enc_len,:]
-            trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.n_ch]
+            trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
 
             optimizer.zero_grad()
-            output, _, _ = model(src,trg,teacher_forcing_ratio=teacher_forcing_ratio)
+            output, _, _ = self(src,trg,teacher_forcing_ratio=teacher_forcing_ratio)
 
             loss = criterion(output,trg)
             loss.backward()
 
-            torch.nn.utils.clip_grad_norm_(model.parameters(),clip)
+            torch.nn.utils.clip_grad_norm_(self.parameters(),clip)
             optimizer.step()
 
             epoch_loss += loss.item()
@@ -77,20 +79,20 @@ class Seq2Seq_GRU(nn.Module):
 
         return epoch_loss, np.array(batch_loss) # is np use here problematic?
 
-    def evaluation(self, loader, criterion):
-        model.eval()
+    def eval_iter(self, iterator, criterion):
+        self.eval()
 
         epoch_loss = 0.
         batch_loss = []
 
         with torch.no_grad():
-            for i, batch in enumerate(iterator):
-                if np.mod(i+1,1000)==0:
-                    print(i,len(iterator))
-                src = batch[:,:enc_len,:]
-                trg = batch[:,enc_len:enc_len+dec_len,:n_ch]
+            for idx, batch in enumerate(iterator):
+                if np.mod(idx+1,1000)==0:
+                    print(idx,len(iterator))
+                src = batch[:,:self.enc_len,:]
+                trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
 
-                output, enc_state, dec_state = model(src,trg,teacher_forcing_ratio=0.)
+                output, enc_state, dec_state = self(src,trg,teacher_forcing_ratio=0.)
 
                 loss = criterion(output, trg)
                 epoch_loss += loss.item()
@@ -99,10 +101,10 @@ class Seq2Seq_GRU(nn.Module):
         return epoch_loss, np.array(batch_loss)
 
         # spot for future pytorch-lightning integration
-        def training_step(self):
-            # tensorboard_logs = {'train_loss': loss}
-            # return {'loss': loss, 'log': tensorboard_logs}
-            None
+        # def training_step(self):
+        #     # tensorboard_logs = {'train_loss': loss}
+        #     # return {'loss': loss, 'log': tensorboard_logs}
+        #     None
 
         def configure_optimizers(self):
             # return torch.optim.Adam(self.parameters(), lr=0.001)
@@ -144,8 +146,8 @@ class Decoder_GRU(nn.Module):
         self.dropout = nn.Dropout(dropout) # no dropout is added to the end of an rnn block in pytorch
         self.fc_out = nn.Linear(hid_dim, output_dim)
 
-    def forward(self, input_data):
-        output, hidden = self.rnn(input_data)
+    def forward(self, input_data, hidden):
+        output, hidden = self.rnn(input_data, hidden)
         prediction = self.fc_out(output)
 
         return prediction, output, hidden
