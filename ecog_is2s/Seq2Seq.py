@@ -79,6 +79,14 @@ class Seq2Seq_GRU(nn.Module):
 
         return epoch_loss, np.array(batch_loss) # is np use here problematic?
 
+    # pytorch-lightning hooks
+    def training_step( step, batch, batch_idx ):
+        src, trg = batch
+        out, _, _ = self(src, trg)
+        loss = nn.functional.mse_loss(trg,out)
+        tensorboard_logs = {'train_loss': loss}
+        return {'loss': loss, 'log': tensorboard_logs}
+
     def eval_iter(self, iterator, criterion):
         self.eval()
 
@@ -100,21 +108,15 @@ class Seq2Seq_GRU(nn.Module):
 
         return epoch_loss, np.array(batch_loss)
 
-        # spot for future pytorch-lightning integration
-        # def training_step(self):
-        #     # tensorboard_logs = {'train_loss': loss}
-        #     # return {'loss': loss, 'log': tensorboard_logs}
-        #     None
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=0.001)
 
-        def configure_optimizers(self):
-            # return torch.optim.Adam(self.parameters(), lr=0.001)
-            None
-
-        def train_dataloader(self):
-            # dataset = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
-            # loader = DataLoader(dataset, batch_size=32, num_workers=4, shuffle=True)
-            # return loader
-            None
+    # for pytorch-lightning integration
+    def train_dataloader(self):
+        # dataset = MNIST(os.getcwd(), train=True, download=True, transform=transforms.ToTensor())
+        # loader = DataLoader(dataset, batch_size=32, num_workers=4, shuffle=True)
+        # return loader
+        None
         # ending future pytorch-lightning integration
 
 class Encoder_GRU(nn.Module):
