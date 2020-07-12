@@ -3,6 +3,7 @@ from torch import randperm
 from torch.utils.data.sampler import SubsetRandomSampler, SequentialSampler
 
 import numpy as np
+import sys
 
 
 # create device mounting function (move data to GPU)
@@ -10,6 +11,20 @@ def to_device( data, device ):
     if isinstance(data, (list, tuple)):
         return [to_device(x, device) for x in data]
     return data.to(device, non_blocking=True)
+
+# local z-score transform
+class local_zscore(object):
+    # I do not know if initialization requires more detail in this case.
+    def __init__(self):
+        None
+
+    def __call__(self,src,trg):
+        sample = torch.cat([src,trg],dim=0)
+        mean = sample.mean(axis=0)
+        std = sample.std(axis=0)
+        src_z = (src-mean)/std
+        trg_z = (trg-mean)/std
+        return src_z, trg_z
 
 # multifile dataset - access src/trg sequences from multiple files in a collection with a single sampling index.
 class WirelessEcogDataset_MultiFile(Dataset):
@@ -20,6 +35,7 @@ class WirelessEcogDataset_MultiFile(Dataset):
     # 2020.07.08
 
     def __init__( self, ecog_file_list, src_len, trg_len, step_len, ch_idx = None, device='cpu' ):
+        super(WirelessEcogDataset_MultiFile,self).__init__()
         data_parameter_dict = self.create_parameter_dict(ecog_file_list,src_len,trg_len,step_len,ch_idx)
 
         ## set parameters
@@ -119,6 +135,21 @@ class WirelessEcogDataset_MultiFile(Dataset):
 
         return n_samp, n_ch, srate, data_type, sample_idx, ch_idx
 
+# default dataloader wrapper, should work with 'lfp', 'clfp', 'raw'
+def spontaneous_ecog( src_len, trg_len, step_len, filter_type='clfp' ):
+    platform_name = sys.platform
+    if platform_name == 'darwin':
+        # local machine
+        data_dir_path = '/Volumes/Samsung_T5/aoLab/Data/WirelessData/Goose_Multiscale_M1/180325/'
+    elif platform_name == 'linux2':
+        # HYAK, baby!
+        data_dir_path = '/gscratch/stf/manolan/Data/WirelessData/Goose_Multiscale_M1/180325/'
+    elif platform_name == 'linux':
+        # google cloud, don't fail me now
+        data_file_full_path = '/home/mickey/Data/WirelessData/Goose_Multiscale_M1/180325/'
+    # glop the file list
+    ecog_file_list = glob.glob(os.path.join(data_dir_path,'0*/*.{}.dat').format(filter_type))
+    return WirelessEcogDataset_MultiFile(ecog_file_list,src_len,trg_len,src_len+trg_len,transform=local_zscore())
 
 # dataset interface to ECoG data (really more general, just multivariate time series data)
 class EcogDataset(Dataset):
