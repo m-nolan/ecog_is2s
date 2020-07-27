@@ -2,8 +2,14 @@ from torch.utils.data import Dataset, DataLoader, Sampler
 from torch import randperm
 from torch.utils.data.sampler import SubsetRandomSampler, SequentialSampler
 
-import numpy as np
+import os
 import sys
+import glob
+import json
+import pickle as pkl
+
+import numpy as np
+import torch
 
 
 # create device mounting function (move data to GPU)
@@ -25,6 +31,21 @@ class local_zscore(object):
         src_z = (src-mean)/std
         trg_z = (trg-mean)/std
         return src_z, trg_z
+
+class add_signal_diff(object):
+    def __init__(self,axis=1,srate=1):
+        self.axis=-1
+        self.srate=1
+
+    def __call__(self,src,trg):
+        # compute center difference dsdt estimate
+        dsrc = torch.zeros(src.shape)
+        dsrc[:,1:-1,:] = (src[:,2:,:]-src[:,:-2,:])/(2*self.srate)
+        dsrc[:,0,:] = dsrc[:,1,:]
+        dsrc[:,-1,:] = dsrc[:,-2,:]
+        src_aug = torch.stack(src,drc,axis=-1)
+        return src_aug, trg
+
 
 # multifile dataset - access src/trg sequences from multiple files in a collection with a single sampling index.
 class WirelessEcogDataset_MultiFile(Dataset):
@@ -149,7 +170,7 @@ def spontaneous_ecog( src_len, trg_len, step_len, filter_type='clfp' ):
         data_file_full_path = '/home/mickey/Data/WirelessData/Goose_Multiscale_M1/180325/'
     # glop the file list
     ecog_file_list = glob.glob(os.path.join(data_dir_path,'0*/*.{}.dat').format(filter_type))
-    return WirelessEcogDataset_MultiFile(ecog_file_list,src_len,trg_len,src_len+trg_len,transform=local_zscore())
+    return WirelessEcogDataset_MultiFile(ecog_file_list,src_len,trg_len,src_len+trg_len)
 
 # dataset interface to ECoG data (really more general, just multivariate time series data)
 class EcogDataset(Dataset):

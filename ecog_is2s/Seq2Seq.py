@@ -4,9 +4,15 @@ import numpy as np
 # import random
 
 class Seq2Seq_GRU(nn.Module):
-    def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device, dropout=0.0):
+    def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device,
+                 dropout=0.0, use_diff=False, bidirectional=False):
         super().__init__()
-        self.input_dim = input_dim
+        self.use_diff = use_diff
+        self.bidirectional = bidirectional
+        if self.use_diff:
+            self.input_dim = 2*input_dim
+        else:
+            self.input_dim = input_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
         self.enc_len = enc_len # do we need these?
@@ -16,13 +22,19 @@ class Seq2Seq_GRU(nn.Module):
 
         # create encoder
         # self.encoder.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
-        self.encoder = Encoder_GRU(self.input_dim, self.hid_dim, self.n_layers, self.enc_len, self.dropout)
+        self.encoder = Encoder_GRU(self.input_dim, self.hid_dim, self.n_layers,
+                                   self.enc_len, self.dropout, self.bidirectional)
 
         # create decoder
         # self.decoder.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
         # self.decoder.dropout = nn.Dropout(dropout)
         # self.decoder.fc_out = nn.Linear(hid_dim, input_dim)
-        self.decoder = Decoder_GRU(self.input_dim, self.hid_dim, self.n_layers, self.dec_len, self.dropout)
+        if self.bidirectional: # account for bidirectional concatenation
+            dec_hid_dim = 2*self.hid_dim
+        else:
+            dec_hid_dim = self.hid_dim
+        self.decoder = Decoder_GRU(self.input_dim, dec_hid_dim, self.n_layers,
+                                   self.dec_len, self.dropout)
 
     # full model forward pass
     def forward(self, src, trg, teacher_forcing_ratio = 0.00):
@@ -33,12 +45,15 @@ class Seq2Seq_GRU(nn.Module):
         trg_dim = trg.shape[2]
 
         # preallocate outputs
+        if self.bidire
         out = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
         dec_state = torch.zeros(batch_size, trg_len, self.hid_dim).to(self.device)
 
         enc_state, hidden = self.encoder(src)
 
-        input_ = torch.zeros((batch_size, 1, trg_dim)).to(self.device, non_blocking=True)
+        # change initialization!
+        # input_ = torch.zeros((batch_size, 1, trg_dim)).to(self.device, non_blocking=True)
+        input_ = src[:,-1,:self.input_dim].to(self.device, non_blocking=True)
         for t in range(trg_len):
             # pred: the output of the linear layer, trained to track the ECoG data.
             # output: the output of the decoder and input to the following fc linear layer.
@@ -120,15 +135,17 @@ class Seq2Seq_GRU(nn.Module):
         # ending future pytorch-lightning integration
 
 class Encoder_GRU(nn.Module):
-    def __init__(self, input_dim, hid_dim, n_layers, seq_len, dropout):
+    def __init__(self, input_dim, hid_dim, n_layers, seq_len, dropout, bidirectional=False):
         super().__init__()
 
         self.input_dim = input_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
         self.seq_len = seq_len
+        self.bidirectional = bidirectional
 
-        self.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
+        self.rnn = nn.GRU(self.input_dim, self.hid_dim, self.n_layers, dropout=self.dropout,
+                          batch_first=True, bidirectional=self.bidirectional)
 
     def forward(self, input_data):
         output, hidden = self.rnn(input_data)
@@ -136,15 +153,17 @@ class Encoder_GRU(nn.Module):
         return output, hidden
 
 class Decoder_GRU(nn.Module):
-    def __init__(self, output_dim, hid_dim, n_layers, seq_len, dropout):
+    def __init__(self, output_dim, hid_dim, n_layers, seq_len, dropout, bidirectional=False):
         super().__init__()
 
         self.output_dim = output_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
         self.seq_len = seq_len
+        self.bidirectional = bidirectional
 
-        self.rnn = nn.GRU(output_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
+        self.rnn = nn.GRU(self.output_dim, self.hid_dim, self.n_layers, dropout=self.dropout,
+                          batch_first=True, bidirectional=self.bidirectional)
         self.dropout = nn.Dropout(dropout) # no dropout is added to the end of an rnn block in pytorch
         self.fc_out = nn.Linear(hid_dim, output_dim)
 
