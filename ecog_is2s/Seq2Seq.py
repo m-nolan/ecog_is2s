@@ -9,10 +9,7 @@ class Seq2Seq_GRU(nn.Module):
         super().__init__()
         self.use_diff = use_diff
         self.bidirectional = bidirectional
-        if self.use_diff:
-            self.input_dim = 2*input_dim
-        else:
-            self.input_dim = input_dim
+        self.input_dim = input_dim
         self.hid_dim = hid_dim
         self.n_layers = n_layers
         self.enc_len = enc_len # do we need these?
@@ -21,14 +18,14 @@ class Seq2Seq_GRU(nn.Module):
         self.device = device
 
         # create encoder
-        # self.encoder.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
-        self.encoder = Encoder_GRU(self.input_dim, self.hid_dim, self.n_layers,
-                                   self.enc_len, self.dropout, self.bidirectional)
+        if self.use_diff:
+            enc_in_dim = 2*self.input_dim
+        else:
+            enc_in_dim = self.input_dim
+        self.encoder = Encoder_GRU(enc_in_dim, self.hid_dim, self.n_layers,
+                                   self.enc_len, self.dropout, bidirectional=self.bidirectional)
 
         # create decoder
-        # self.decoder.rnn = nn.GRU(input_dim, hid_dim, n_layers, dropout=dropout, batch_first=True)
-        # self.decoder.dropout = nn.Dropout(dropout)
-        # self.decoder.fc_out = nn.Linear(hid_dim, input_dim)
         if self.bidirectional: # account for bidirectional concatenation
             dec_hid_dim = 2*self.hid_dim
         else:
@@ -37,6 +34,7 @@ class Seq2Seq_GRU(nn.Module):
                                    self.dec_len, self.dropout)
 
     # full model forward pass
+    # @torch.jit.script # this may make things faster, so long as they work at all...
     def forward(self, src, trg, teacher_forcing_ratio = 0.00):
         batch_size = trg.shape[0]
         src_len = src.shape[1]
@@ -45,15 +43,23 @@ class Seq2Seq_GRU(nn.Module):
         trg_dim = trg.shape[2]
 
         # preallocate outputs
-        if self.bidire
         out = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
-        dec_state = torch.zeros(batch_size, trg_len, self.hid_dim).to(self.device)
-
+        if self.bidirectional:
+            dec_dim = 2*self.hid_dim
+        else:
+            dec_dim = self.hid_dim
+        dec_state = torch.zeros(batch_size, trg_len, dec_dim).to(self.device)
         enc_state, hidden = self.encoder(src)
+        if self.bidirectional:
+            # unwrap bidirectional pass output shapes
+            # torch.reshape() didn't have a convenient way to do this. Reassess?
+            hidden = torch.cat((hidden[:self.n_layers,],hidden[self.n_layers:,]),axis=-1)
+            if self.n_layers == 1:
+                hidden = hidden.unsqueeze(0)
 
         # change initialization!
         # input_ = torch.zeros((batch_size, 1, trg_dim)).to(self.device, non_blocking=True)
-        input_ = src[:,-1,:self.input_dim].to(self.device, non_blocking=True)
+        input_ = src[:,-1,:self.input_dim].unsqueeze(axis=1).to(self.device, non_blocking=True)
         for t in range(trg_len):
             # pred: the output of the linear layer, trained to track the ECoG data.
             # output: the output of the decoder and input to the following fc linear layer.
@@ -73,12 +79,12 @@ class Seq2Seq_GRU(nn.Module):
         epoch_loss = 0
         batch_loss = []
 
-        for idx, batch in enumerate(iterator):
+        for idx, (src,trg) in enumerate(iterator):
             # ^change this when you update the dataloader to split src/trg
             if np.mod(idx+1,1000) == 0:
                 print(idx,len(iterator))
-            src = batch[:,:self.enc_len,:]
-            trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
+            # src = batch[:,:self.enc_len,:]
+            # trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
 
             optimizer.zero_grad()
             output, _, _ = self(src,trg,teacher_forcing_ratio=teacher_forcing_ratio)
@@ -109,12 +115,9 @@ class Seq2Seq_GRU(nn.Module):
         batch_loss = []
 
         with torch.no_grad():
-            for idx, batch in enumerate(iterator):
+            for idx, (src,trg) in enumerate(iterator):
                 if np.mod(idx+1,1000)==0:
                     print(idx,len(iterator))
-                src = batch[:,:self.enc_len,:]
-                trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
-
                 output, enc_state, dec_state = self(src,trg,teacher_forcing_ratio=0.)
 
                 loss = criterion(output, trg)
@@ -144,7 +147,7 @@ class Encoder_GRU(nn.Module):
         self.seq_len = seq_len
         self.bidirectional = bidirectional
 
-        self.rnn = nn.GRU(self.input_dim, self.hid_dim, self.n_layers, dropout=self.dropout,
+        self.rnn = nn.GRU(self.input_dim, self.hid_dim, self.n_layers, dropout=dropout,
                           batch_first=True, bidirectional=self.bidirectional)
 
     def forward(self, input_data):
@@ -162,7 +165,7 @@ class Decoder_GRU(nn.Module):
         self.seq_len = seq_len
         self.bidirectional = bidirectional
 
-        self.rnn = nn.GRU(self.output_dim, self.hid_dim, self.n_layers, dropout=self.dropout,
+        self.rnn = nn.GRU(self.output_dim, self.hid_dim, self.n_layers, dropout=dropout,
                           batch_first=True, bidirectional=self.bidirectional)
         self.dropout = nn.Dropout(dropout) # no dropout is added to the end of an rnn block in pytorch
         self.fc_out = nn.Linear(hid_dim, output_dim)

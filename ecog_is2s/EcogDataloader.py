@@ -40,10 +40,10 @@ class add_signal_diff(object):
     def __call__(self,src,trg):
         # compute center difference dsdt estimate
         dsrc = torch.zeros(src.shape)
-        dsrc[:,1:-1,:] = (src[:,2:,:]-src[:,:-2,:])/(2*self.srate)
-        dsrc[:,0,:] = dsrc[:,1,:]
-        dsrc[:,-1,:] = dsrc[:,-2,:]
-        src_aug = torch.stack(src,drc,axis=-1)
+        dsrc[1:-1,:] = (src[2:,:]-src[:-2,:])/(2*self.srate)
+        dsrc[0,:] = dsrc[1,:]
+        dsrc[-1,:] = dsrc[-2,:]
+        src_aug = torch.cat((src,dsrc),axis=-1)
         return src_aug, trg
 
 
@@ -174,7 +174,7 @@ def spontaneous_ecog( src_len, trg_len, step_len, filter_type='clfp' ):
 
 # dataset interface to ECoG data (really more general, just multivariate time series data)
 class EcogDataset(Dataset):
-    def __init__(self, data_in, device, block_len):
+    def __init__(self, data_in, device, src_len, trg_len, transform=None):
         data_in_dimensions = data_in.shape
         # check signal size, pad with empty channel dimension if necessary.
         if len(data_in_dimensions) < 2:
@@ -184,10 +184,13 @@ class EcogDataset(Dataset):
             raise Exception("Input dimension detected: {}. Input data array must be 2-dimensional.".format(data_in_dimensions))
         self.data = data_in
         self.device = device
-        self.block_len = int(block_len)
+        self.src_len = int(src_len)
+        self.trg_len = int(trg_len)
+        self.block_len = self.src_len + self.trg_len
         # self.return_diff = return_diff # idea - implement dX computation at loading point?
         self.data_len = self.data.shape[0]
         self.n_ch = self.data.shape[-1]
+        self.transform = transform
 
     def __len__(self):
         return self.data.shape[0] // self.block_len #?
@@ -195,10 +198,14 @@ class EcogDataset(Dataset):
     def __getitem__(self, idx):
         # get data range (make sure not to sample from outside range)
         data_out = self.data[idx:(idx + self.block_len),:].to(self.device, non_blocking=True)
-        return data_out
+        src = data_out[:self.src_len]
+        trg = data_out[self.src_len:]
+        if self.transform:
+            src, trg = self.transform(src,trg)
+        return src, trg
 
 # produce sequential dataloaders
-def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, drop_last=False, rand_samp=False, plot_seed=0):
+def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, drop_last=False, rand_samp=False, plot_seed=0, transform=None):
     data_size = dataset.data.shape[0]
     idx_all = np.arange(data_size)
 #     smpl_idx_all = idx_all[:-seq_len:seq_len]
