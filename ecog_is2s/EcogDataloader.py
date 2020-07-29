@@ -33,13 +33,14 @@ class local_zscore(object):
         return src_z, trg_z
 
 class add_signal_diff(object):
-    def __init__(self,axis=1,srate=1):
+    def __init__(self,axis=1,srate=1,device='cpu'):
         self.axis=-1
         self.srate=1
+        self.device=device
 
     def __call__(self,src,trg):
         # compute center difference dsdt estimate
-        dsrc = torch.zeros(src.shape)
+        dsrc = torch.zeros(src.shape,device=self.device)
         dsrc[1:-1,:] = (src[2:,:]-src[:-2,:])/(2*self.srate)
         dsrc[0,:] = dsrc[1,:]
         dsrc[-1,:] = dsrc[-2,:]

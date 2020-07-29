@@ -54,8 +54,6 @@ class Seq2Seq_GRU(nn.Module):
             # unwrap bidirectional pass output shapes
             # torch.reshape() didn't have a convenient way to do this. Reassess?
             hidden = torch.cat((hidden[:self.n_layers,],hidden[self.n_layers:,]),axis=-1)
-            if self.n_layers == 1:
-                hidden = hidden.unsqueeze(0)
 
         # change initialization!
         # input_ = torch.zeros((batch_size, 1, trg_dim)).to(self.device, non_blocking=True)
