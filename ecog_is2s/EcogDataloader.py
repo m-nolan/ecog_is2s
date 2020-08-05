@@ -56,7 +56,7 @@ class WirelessEcogDataset_MultiFile(Dataset):
     # Michael Nolan
     # 2020.07.08
 
-    def __init__( self, ecog_file_list, src_len, trg_len, step_len, ch_idx = None, device='cpu' ):
+    def __init__( self, ecog_file_list, src_len, trg_len, step_len, ch_idx = None, device='cpu', transform=None ):
         super(WirelessEcogDataset_MultiFile,self).__init__()
         data_parameter_dict = self.create_parameter_dict(ecog_file_list,src_len,trg_len,step_len,ch_idx)
 
@@ -69,6 +69,7 @@ class WirelessEcogDataset_MultiFile(Dataset):
         self.file_offset_idx = np.zeros(self.file_ref_idx.shape,dtype=int)
         self.file_offset_idx[1:] = self.file_ref_idx[:-1]
         self.device = device
+        self.transform = transform
 
     def __len__( self ):
         return sum([len(x) for x in self.data_parameter_dict['sample_idx']])
@@ -84,6 +85,8 @@ class WirelessEcogDataset_MultiFile(Dataset):
         offset = self.data_parameter_dict['sample_idx'][file_idx][in_file_sample_idx]*n_ch*dtype().nbytes
         data_sample = torch.tensor(np.fromfile(filepath,dtype=dtype,count=count,offset=offset).reshape((n_ch,self.src_len+self.trg_len),order='F').T)
         src, trg = torch.split(data_sample[:,ch_idx],[self.src_len,self.trg_len])
+        if self.transform:
+            src,trg = self.transform(src,trg)
 
         return src.to(self.device,non_blocking=True), trg.to(self.device, non_blocking=True)
 
@@ -149,7 +152,7 @@ class WirelessEcogDataset_MultiFile(Dataset):
         # get params
         n_samp = len(mask)
         # create sampling index - src_len+trg_len length segments that don't include a masked sample
-        _sample_idx = np.arange(n_samp-(src_len+trg_len),step=step_len)
+        _sample_idx = np.arange(n_samp-(src_len+trg_len),step=step_len,dtype=int)
         _use_sample_idx = np.zeros((len(_sample_idx)),dtype=bool) # all false
         for sidx in range(len(_sample_idx)):
             _use_sample_idx[sidx] = ~np.any(mask[_sample_idx[sidx] + np.arange(src_len+trg_len)])
@@ -206,13 +209,13 @@ class EcogDataset(Dataset):
         return src, trg
 
 # produce sequential dataloaders
-def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_size, drop_last=False, rand_samp=False, plot_seed=0, transform=None):
-    data_size = dataset.data.shape[0]
-    idx_all = np.arange(data_size)
+def genLoaders( dataset, sample_idx, train_frac, valid_frac, test_frac, batch_size, drop_last=False, rand_samp=False, plot_seed=0, transform=None):
+    # data_size = dataset.data.shape[0]
+    # idx_all = np.arange(data_size)
 #     smpl_idx_all = idx_all[:-seq_len:seq_len]
 
     train_sampler, test_sampler, valid_sampler, plot_sampler = genSamplers(
-        sample_idx,train_frac,test_frac,valid_frac=valid_frac,rand_samp=rand_samp,plot_seed=plot_seed
+        sample_idx,train_frac,valid_frac,test_frac=test_frac,rand_samp=rand_samp,plot_seed=plot_seed
         )
 
     train_loader = DataLoader(dataset,
@@ -234,7 +237,7 @@ def genLoaders( dataset, sample_idx, train_frac, test_frac, valid_frac, batch_si
     return train_loader, test_loader, valid_loader, plot_loader
 
 
-def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, plot_seed=0, verbose=False ):
+def genSamplers( idx, train_frac, valid_frac, test_frac=0.0, rand_samp=False, plot_seed=0, verbose=False ):
     n_samp = len(idx)
     # this allows you to randomly shuffle the train/test splits.
     # Turns out, you don't want this.
@@ -248,7 +251,9 @@ def genSamplers( idx, train_frac, test_frac, valid_frac=0.0, rand_samp=False, pl
     train_idx = idx[shuffle_idx[:train_split]]
     valid_idx = idx[shuffle_idx[train_split:train_split+valid_split]]
     test_idx = idx[shuffle_idx[train_split+valid_split:-1]]
-    plot_idx = np.concatenate((train_idx[plot_seed], test_idx[plot_seed]))#, valid_idx[plot_seed]])
+    if not np.shape(plot_seed):
+        plot_seed = [plot_seed]
+    plot_idx = np.concatenate((train_idx[plot_seed], valid_idx[plot_seed]))#, valid_idx[plot_seed]])
     if verbose:
         print(train_idx.shape,test_idx.shape,valid_idx.shape,plot_idx.shape)
 
