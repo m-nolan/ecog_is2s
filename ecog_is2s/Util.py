@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from datetime import datetime
 import numpy as np
@@ -25,3 +26,35 @@ def center_diff(x):
     dx = np.zeros(x.shape)
     dx[:,1:-1] = (x[:,2:] - x[:,:-2])/2
     return np.float32(dx)
+
+## dataset transforms
+# local z-score transform
+class local_zscore(object):
+    # I do not know if initialization requires more detail in this case.
+    def __init__(self,axis=0,scale=0.25):
+        self.axis=axis
+        self.scale=scale
+
+    def __call__(self,sample_tuple):
+        src, trg = sample_tuple
+        sample = torch.cat([src,trg],dim=self.axis)
+        mean = sample.mean(axis=self.axis)
+        std = sample.std(axis=self.axis)
+        src_z = (src-mean)*self.scale/std
+        trg_z = (trg-mean)*self.scale/std
+        return (src_z, trg_z)
+
+# augment source signal with center-difference ds/dx estimate
+class add_signal_diff(object):
+    def __init__(self,srate=1):
+        self.srate=srate
+
+    def __call__(self,sample_tuple):
+        src, trg = sample_tuple
+        # compute center difference dsdt estimate
+        dsrc = torch.zeros(src.shape,device=src.device)
+        dsrc[1:-1,:] = (src[2:,:]-src[:-2,:])/(2*self.srate)
+        dsrc[0,:] = dsrc[1,:]
+        dsrc[-1,:] = dsrc[-2,:]
+        src_aug = torch.cat((src,dsrc),axis=-1)
+        return (src_aug, trg)

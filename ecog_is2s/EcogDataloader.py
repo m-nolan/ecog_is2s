@@ -33,7 +33,7 @@ class local_zscore(object):
         return src_z, trg_z
 
 class add_signal_diff(object):
-    def __init__(self,axis=1,srate=1,device='cpu'):
+    def __init__(self,axis=-1,srate=1,device='cpu'):
         self.axis=-1
         self.srate=1
         self.device=device
