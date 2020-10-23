@@ -6,7 +6,7 @@ from pytorch_lightning.core.lightning import LightningModule
 import numpy as np
 # import random
 
-class Seq2Seq_GRU(LightningModule):
+class Seq2Seq_GRU(nn.Module):
     def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device,
                  dropout=0.0, use_diff=False, bidirectional=False, learning_rate = 1e-4):
         super().__init__()
@@ -36,7 +36,7 @@ class Seq2Seq_GRU(LightningModule):
         self.decoder = Decoder_GRU(self.input_dim, dec_hid_dim, self.n_layers,
                                    self.dec_len, self.dropout)
 
-        self.save_hyperparameters()
+        # self.save_hyperparameters()
 
     # full model forward pass
     # @torch.jit.script # this may make things faster, so long as they work at all...
@@ -80,14 +80,16 @@ class Seq2Seq_GRU(LightningModule):
         batch_loss = []
 
         for idx, (src,trg) in enumerate(iterator):
-            # ^change this when you update the dataloader to split src/trg
-            if np.mod(idx+1,1000) == 0:
-                print(idx,len(iterator))
-            # src = batch[:,:self.enc_len,:]
-            # trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
-
             optimizer.zero_grad()
+            # remove nan samples from batch - sometimes there are read errors
+            batch_size, _, _ = src.size()
+            src_idx = ~torch.any(torch.isnan(src.view(batch_size,-1)),axis=-1)
+            src = src[src_idx,:,:]
+            trg = trg[src_idx,:,:]
             output, _, _ = self(src,trg,teacher_forcing_ratio=teacher_forcing_ratio)
+
+            # if torch.any(torch.isnan(src)) or torch.any(torch.isnan(trg)) or torch.any(torch.isnan(output)):
+            #     breakpoint()
 
             loss = criterion(output,trg)
             loss.backward()
