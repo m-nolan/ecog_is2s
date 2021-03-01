@@ -1,8 +1,180 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
+from pytorch_lightning.core.lightning import LightningModule
 # import random
 
+### PYTORCH-LIGHTNING NETWORK IMPLEMENTATION ###
+class Seq2seq_ptl(LightningModule):
+    # LightningModule class definition for encoder-decoder seq2seq networks.
+    def __init__( self, input_dim, hid_dim, n_layers, device='cpu', criterion='MSE', dropout=0.0, learning_rate=0.005,
+                  teacher_forcing_ratio=0.0, use_diff=False, bidirectional=False, split=(0.8,0.2,0.0) ):
+        super().__init__()
+        self.input_dim = input_dim
+        self.hid_dim = hid_dim
+        self.n_layers = n_layers
+        self.device_name = device
+        self.dropout = dropout
+        self.learning_rate = learning_rate
+        self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.use_diff = use_diff
+        self.bidirectional = bidirectional
+        self.split = split # ( train_frac, valid_frac, test_frac )
+
+        # compute corrected component dimensions
+        if self.use_diff:
+            enc_input_dim = 2*self.input_dim
+        else:
+            enc_input_dim = self.input_dim
+
+        if self.bidirectional:
+            dec_hidden_dim = 2*self.hid_dim
+        else:
+            dec_hidden_dim = self.hid_dim
+
+        # create network components
+        self.encoder = Encoder_GRU_ptl(enc_input_dim,self.hid_dim,self.n_layers,self.dropout,self.bidirectional)
+        self.decoder = Decoder_GRU_ptl(self.input_dim,dec_hidden_dim,self.n_layers,self.dropout)
+
+        # initialize network weights: use default initialization for now (uniform random draws, ±sqrt(1/n_hid))
+
+        # configure loss criterion
+        self.configure_criterion(criterion)
+
+    # forward pass - compute network outputs
+    def forward(self, src, trg):
+        batch_size = trg.shape[0]
+        src_len = src.shape[1]
+        src_dim = src.shape[2]
+        trg_len = trg.shape[1]
+        trg_dim = trg.shape[2]
+
+        # preallocate outputs
+        out = torch.zeros(batch_size, trg_len, trg_dim)
+        if self.bidirectional:
+            dec_dim = 2*self.hid_dim
+        else:
+            dec_dim = self.hid_dim
+        dec_state = torch.zeros(batch_size, trg_len, dec_dim)
+        enc_state, hidden = self.encoder(src)
+        if self.bidirectional:
+            # unwrap bidirectional pass output shapes
+            # torch.reshape() didn't have a convenient way to do this. Reassess?
+            hidden = torch.cat((hidden[:self.n_layers,],hidden[self.n_layers:,]),axis=-1)
+
+        # change initialization!
+        # input_ = torch.zeros((batch_size, 1, trg_dim)).to(self.device, non_blocking=True)
+        input_ = src[:,-1,:self.input_dim].unsqueeze(axis=1).to(self.device, non_blocking=True)
+        for t in range(trg_len):
+            # pred: the output of the linear layer, trained to track the ECoG data.
+            # output: the output of the decoder and input to the following fc linear layer.
+            # hidden: the hidden state of the decoder at the last time point: [n_layer*n_dir, n_batch, n_ch]
+            #       ^ if you want to see each layer's activity at the last time point, use this.
+            pred, output, hidden = self.decoder(input_,hidden)
+            out[:,t,:] = pred.squeeze(1)
+            dec_state[:,t,:] = output.squeeze(1)
+            teacher_force = torch.rand(1)[0] < self.teacher_forcing_ratio
+            input_ = trg[:,t,:].unsqueeze(1) if teacher_force else pred
+
+        return out, enc_state, dec_state
+
+    # configure loss criterion
+    def configure_criterion( self, criterion ):
+        if criterion == 'mse' or criterion == 'MSE' or criterion == 'L2':
+            self.criterion = nn.MSELoss()
+        elif criterion == 'lasso' or criterion == 'LASSO' or criterion == 'L1':
+            self.criterion = nn.L1Loss()
+        elif type(criterion).__bases__[0].__name__ == '_Loss':
+            self.criterion = criterion
+
+    def prepare_data( self ):
+        self.dataset = None
+
+    # configure parameter optimization algorithm (ADAM)
+    def configure_optimizers( self ):
+        return torch.optim.Adam(self.parameters(),lr=self.learning_rate)
+
+    # dataloader configuration
+    def train_dataloader( self ):
+        return None
+
+    def val_dataloader( self ):
+        return None
+
+    def test_dataloader( self ):
+        return None
+
+    # training loop methods
+    def training_step( self, batch, batch_idx ):
+        src, trg = batch
+        out, enc, dec = self(src,trg)
+        loss = self.criterion(out,trg)
+        tensorboard_logs = {'train_loss': loss}
+        return {'loss': loss, 'log': tensorboard_logs}
+
+    # validation loop methods
+    def validation_step( self, batch, batch_idx ):
+        src, idx = batch
+        out, enc, dec = self(src,trg)
+        loss = self.criterion(out,trg)
+        return {'val_loss': loss}
+
+    def validation_epoch_end( self, outputs ):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    # test loop methods
+    def test_step( self, batch, batch_idx ):
+        src, trg = batch
+        out, enc, dec = self(src,trg)
+        loss = self.criterion(out,trg)
+        return {'test_loss': loss} # can I add FVE to this?
+
+    def test_epoch_end( self, outputs ):
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_loss': avg_loss}
+        return {'avg_test_loss': avg_loss, 'log': tensorboard_logs}
+
+class Encoder_GRU_ptl(nn.Module):
+    def __init__(self, input_dim, hid_dim, n_layers, dropout, bidirectional=False):
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.hid_dim = hid_dim
+        self.n_layers = n_layers
+        self.bidirectional = bidirectional
+
+        self.rnn = nn.GRU(self.input_dim, self.hid_dim, self.n_layers, dropout=dropout,
+                          batch_first=True, bidirectional=self.bidirectional)
+
+    def forward(self, input_data):
+        output, hidden = self.rnn(input_data)
+        return output, hidden
+
+class Decoder_GRU_ptl(nn.Module):
+    def __init__(self, output_dim, hid_dim, n_layers, dropout, bidirectional=False):
+        super().__init__()
+
+        self.output_dim = output_dim
+        self.hid_dim = hid_dim
+        self.n_layers = n_layers
+        self.bidirectional = bidirectional
+
+        self.rnn = nn.GRU(self.output_dim, self.hid_dim, self.n_layers, dropout=dropout,
+                          batch_first=True, bidirectional=self.bidirectional)
+        self.dropout = nn.Dropout(dropout) # no dropout is added to the end of an rnn block in pytorch
+        self.fc_out = nn.Linear(hid_dim, output_dim)
+
+    def forward(self, input_data, hidden):
+        output, hidden = self.rnn(input_data, hidden)
+        prediction = self.fc_out(output)
+        return prediction, output, hidden
+
+### ~~~ ###
+
+### non-PT-L network code ###
 class Seq2Seq_GRU(nn.Module):
     def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device,
                  dropout=0.0, use_diff=False, bidirectional=False):

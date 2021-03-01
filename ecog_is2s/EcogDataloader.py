@@ -135,15 +135,24 @@ class WirelessEcogDataset_MultiFile(Dataset):
         if not ch_idx:
             ch_idx = np.arange(n_ch)
         # get srate
+        dsmatch = re.search('clfp_ds(\d+)*',rec_type)
         if rec_type == 'raw':
             srate = experiment['hardware']['acquisition']['samplingrate']
             data_type = np.ushort
+            reshape_order = 'F'
         elif rec_type == 'lfp':
             srate = 1000
             data_type = np.float32
+            reshape_order = 'F'
         elif rec_type == 'clfp':
             srate = 1000
             data_type = np.float32
+            reshape_order = 'F'
+        elif dsmatch:
+            # downsampled data - get srate from name
+            srate = int(dsmatch.group(1))
+            data_type = np.float32
+            reshape_order = 'C' # files created with np.tofile which forces C ordering. Sorry!
         # read mask
         ecog_mask_file = os.path.join(data_path,data_file_kern + ".mask.pkl")
         with open(ecog_mask_file,"rb") as mask_f:
