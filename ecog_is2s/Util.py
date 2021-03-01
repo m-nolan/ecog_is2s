@@ -3,7 +3,7 @@ from datetime import datetime
 import numpy as np
 
 # initialize model weights
-def init_weights(m,w_range=(-0.08,0.08)):
+def init_weights(m,w_range=(-0.08,0.08)): # what is this? Why am I doing this
     for name, param in m.named_parameters():
         nn.init.uniform_(param.data, w_range[0], w_range[1])
 
