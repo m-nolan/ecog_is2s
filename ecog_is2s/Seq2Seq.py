@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.nn import functional as F
+import pytorch_lightning as pl
+from pytorch_lightning.core.lightning import LightningModule
 import numpy as np
 from pytorch_lightning.core.lightning import LightningModule
 # import random
@@ -177,7 +179,7 @@ class Decoder_GRU_ptl(nn.Module):
 ### non-PT-L network code ###
 class Seq2Seq_GRU(nn.Module):
     def __init__(self, input_dim, hid_dim, n_layers, enc_len, dec_len, device,
-                 dropout=0.0, use_diff=False, bidirectional=False):
+                 dropout=0.0, use_diff=False, bidirectional=False, learning_rate = 1e-4):
         super().__init__()
         self.use_diff = use_diff
         self.bidirectional = bidirectional
@@ -205,14 +207,13 @@ class Seq2Seq_GRU(nn.Module):
         self.decoder = Decoder_GRU(self.input_dim, dec_hid_dim, self.n_layers,
                                    self.dec_len, self.dropout)
 
+        # self.save_hyperparameters()
+
     # full model forward pass
     # @torch.jit.script # this may make things faster, so long as they work at all...
     def forward(self, src, trg, teacher_forcing_ratio = 0.00):
-        batch_size = trg.shape[0]
-        src_len = src.shape[1]
-        src_dim = src.shape[2]
-        trg_len = trg.shape[1]
-        trg_dim = trg.shape[2]
+        batch_size, src_len, src_dim = src.size()
+        _, trg_len, trg_dim = trg.size()
 
         # preallocate outputs
         out = torch.zeros(batch_size, trg_len, trg_dim).to(self.device)
@@ -250,14 +251,16 @@ class Seq2Seq_GRU(nn.Module):
         batch_loss = []
 
         for idx, (src,trg) in enumerate(iterator):
-            # ^change this when you update the dataloader to split src/trg
-            if np.mod(idx+1,1000) == 0:
-                print(idx,len(iterator))
-            # src = batch[:,:self.enc_len,:]
-            # trg = batch[:,self.enc_len:self.enc_len+self.dec_len,:self.input_dim]
-
             optimizer.zero_grad()
+            # remove nan samples from batch - sometimes there are read errors
+            batch_size, _, _ = src.size()
+            src_idx = ~torch.any(torch.isnan(src.view(batch_size,-1)),axis=-1)
+            src = src[src_idx,:,:]
+            trg = trg[src_idx,:,:]
             output, _, _ = self(src,trg,teacher_forcing_ratio=teacher_forcing_ratio)
+
+            # if torch.any(torch.isnan(src)) or torch.any(torch.isnan(trg)) or torch.any(torch.isnan(output)):
+            #     breakpoint()
 
             loss = criterion(output,trg)
             loss.backward()
@@ -271,12 +274,29 @@ class Seq2Seq_GRU(nn.Module):
         return epoch_loss, np.array(batch_loss) # is np use here problematic?
 
     # pytorch-lightning hooks
-    def training_step( step, batch, batch_idx ):
+    def training_step( self, step, batch, batch_idx ):
         src, trg = batch
         out, _, _ = self(src, trg)
-        loss = nn.functional.mse_loss(trg,out)
-        tensorboard_logs = {'train_loss': loss}
-        return {'loss': loss, 'log': tensorboard_logs}
+        loss = nn.functional.mse_loss(trg, out)
+        result = pl.TrainResult(loss)
+        result.log('train_result', loss)
+        return result
+
+    def validation_step( self, batch, batch_idx):
+        src, trg = batch
+        out, _, _ = self(src, trg)
+        loss = nn.functional.mse_loss(trg, out)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log('val_loss', loss)
+        return result
+
+    def test_step( self, batch, batch_idx ):
+        src, trg = batch
+        out, _, _ = self(src, trg)
+        loss = nn.functional.mse_loss(trg, out)
+        result = pl.EvalResult()
+        result.log('test_loss', loss)
+        return result
 
     def eval_iter(self, iterator, criterion):
         self.eval()
@@ -297,7 +317,7 @@ class Seq2Seq_GRU(nn.Module):
         return epoch_loss, np.array(batch_loss)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     # for pytorch-lightning integration
     def train_dataloader(self):

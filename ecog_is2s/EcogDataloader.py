@@ -33,7 +33,7 @@ class local_zscore(object):
         return src_z, trg_z
 
 class add_signal_diff(object):
-    def __init__(self,axis=1,srate=1,device='cpu'):
+    def __init__(self,axis=-1,srate=1,device='cpu'):
         self.axis=-1
         self.srate=1
         self.device=device
@@ -98,21 +98,24 @@ class WirelessEcogDataset_MultiFile(Dataset):
         data_type_list = []
         sample_idx_list = []
         ch_idx_list = []
+        ch_label_list = []
         for file in ecog_file_list:
-            _n_samp, _n_ch, _srate, _data_type, _sample_idx, _ch_idx = self.get_ecog_file_parameters(file,src_len,trg_len,step_len,ch_idx)
+            _n_samp, _n_ch, _srate, _data_type, _sample_idx, _ch_idx, _ch_label = self.get_ecog_file_parameters(file,src_len,trg_len,step_len,ch_idx)
             n_samp_list.append(_n_samp)
             n_ch_list.append(_n_ch)
             srate_list.append(_srate)
             data_type_list.append(_data_type)
             sample_idx_list.append(_sample_idx)
             ch_idx_list.append(_ch_idx)
+            ch_label_list.append(_ch_label)
         parameter_dict = {
             'n_samp': n_samp_list,
             'n_ch': n_ch_list,
             'srate': srate_list,
             'data_type': data_type_list,
             'sample_idx': sample_idx_list,
-            'ch_idx': ch_idx_list
+            'ch_idx': ch_idx_list,
+            'ch_label': ch_label_list
         }
         return parameter_dict
 
@@ -131,9 +134,8 @@ class WirelessEcogDataset_MultiFile(Dataset):
         microdrive_name_list = [md['name'] for md in exp_dict['hardware']['microdrive']]
         microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
         microdrive_dict = exp_dict['hardware']['microdrive'][microdrive_idx]
-        n_ch = len(microdrive_dict['electrodes'])
-        if not ch_idx:
-            ch_idx = np.arange(n_ch)
+        electrode_label_list = [e['label'] for e in exp['hardware']['microdrive'][0]['electrodes']]
+        n_ch = len(electrode_label_list)
         # get srate
         dsmatch = re.search('clfp_ds(\d+)*',rec_type)
         if rec_type == 'raw':
@@ -158,6 +160,11 @@ class WirelessEcogDataset_MultiFile(Dataset):
         with open(ecog_mask_file,"rb") as mask_f:
             mask = pkl.load(mask_f)
         mask = mask["hf"] | mask["sat"]
+        if 'ch' in mask.keys():
+            ch_idx = mask['ch']
+        else:
+            ch_idx = np.arange(n_ch)
+        ch_label_list = electrode_label_list[ch_idx]
         # get params
         n_samp = len(mask)
         # create sampling index - src_len+trg_len length segments that don't include a masked sample
@@ -167,7 +174,7 @@ class WirelessEcogDataset_MultiFile(Dataset):
             _use_sample_idx[sidx] = ~np.any(mask[_sample_idx[sidx] + np.arange(src_len+trg_len)])
         sample_idx = _sample_idx[_use_sample_idx]
 
-        return n_samp, n_ch, srate, data_type, sample_idx, ch_idx
+        return n_samp, n_ch, srate, data_type, sample_idx, ch_idx, ch_label_list
 
 # default dataloader wrapper, should work with 'lfp', 'clfp', 'raw'
 def spontaneous_ecog( src_len, trg_len, step_len, filter_type='clfp' ):
@@ -231,19 +238,19 @@ def genLoaders( dataset, sample_idx, train_frac, valid_frac, test_frac, batch_si
                               batch_size=batch_size,
                               sampler=train_sampler,
                               drop_last=drop_last) # this can be avoided using some padding sequence classes, I think
-    test_loader = DataLoader(dataset,
-                             batch_size=batch_size,
-                             sampler=test_sampler,
-                             drop_last=drop_last)
     valid_loader = DataLoader(dataset,
                               batch_size=batch_size,
                               sampler=valid_sampler,
                               drop_last=drop_last)
+    test_loader = DataLoader(dataset,
+                             batch_size=batch_size,
+                             sampler=test_sampler,
+                             drop_last=drop_last)
     plot_loader = DataLoader(dataset,
                              batch_size=1,
                              sampler=plot_sampler,
                              drop_last=drop_last)
-    return train_loader, test_loader, valid_loader, plot_loader
+    return train_loader, valid_loader, test_loader, plot_loader
 
 
 def genSamplers( idx, train_frac, valid_frac, test_frac=0.0, rand_samp=False, plot_seed=0, verbose=False ):
